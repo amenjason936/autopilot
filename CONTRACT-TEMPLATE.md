@@ -1,6 +1,6 @@
 # Autopilot contract — <project>
 
-Standing rules for unattended runs (the `autopilot` skill). The human owns this file: a run reads it and never edits it; it proposes changes in its run record.
+Standing rules for unattended runs (the `autopilot` skill). The human owns this file: a run reads it and never edits it — except to write the human's confirmation into `Status` — and proposes changes in its run record.
 
 Status: proposed <!-- becomes "in force since <date>" once the human confirms -->
 
@@ -35,7 +35,7 @@ Gate settings (environment for `run-gate.sh`):
 
 - `GATE_TIMEOUT`: seconds per command (default 3600)
 - `GATE_KEEP_REGEX`: the suite's verdict line, kept whatever the output length
-- `GATE_ENV`: variables whose values the evidence records — tool locations, flags
+- `GATE_ENV`: variable names whose values the evidence records — tool locations, flags (leave empty for none)
 - `MUTANT_SETUP`: what a fresh worktree needs before the checks run (install or link dependencies)
 
 Tool locations are environment variables or persistent paths, never a session's scratch directory.
@@ -55,13 +55,13 @@ What a run parks. For each, the action and what the run prepares instead.
 
 ## Evidence
 
-Where evidence files go. Each is named `<label>-<first 12 of the tested commit>.md` and is never overwritten. Use `.md` or `.txt` and check the name is not caught by `.gitignore` or a lint gate (trailing whitespace, file types).
+The evidence directory: a directory of its own, holding nothing but evidence (the scripts treat it, with the run record, as record paths that may stay uncommitted). Each file is `<label>.md`, one label per run of a check, never overwritten; each records its tested commit. Mutant patches sit beside their evidence as `<label>.patch`. Check the directory is not caught by `.gitignore`, a lint gate (trailing whitespace, file types), or a submodule.
 
 ## Review
 
 - Heuristics: paths to project-specific rules the reviewers apply.
 - Docs paths: changes that skip the review gate (default: `*.md` outside source directories).
-- Budget: review rounds per stage (default 2), whether stages may share a review gate, and the most review gates per run.
+- Budget: review rounds per review gate (default 2); whether stage reviews run per stage, are shared between stages, or are deferred to the landing review (which always runs); the most review gates per run.
 - Codex: `CODEX_REVIEW_MODEL`, `CODEX_REVIEW_EFFORT` (default high), `CODEX_REVIEW_TIMEOUT` seconds (default 1800).
 
 ## Run records

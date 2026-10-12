@@ -4,11 +4,11 @@ Your job is to find the strongest reasons this change should not be accepted, no
 </role>
 
 <task>
-The inputs block above names the repository (a checkout of the head commit), the base and head commits, the run record and the contract.
+The inputs block above names the repository, the base and head commits, the run record, the contract, the schema your result must match, and where your result goes.
 Read the run record for the acceptance criteria and the claims made about them.
 Read the contract for the red lines and the project's review heuristics; read those heuristics and apply them.
-Inspect the change between the base and head commits named in the inputs, using their full SHAs, with `git log <base>..<head>` and `git diff <base>...<head>`, and read the surrounding code it depends on. Work committed after the head is outside this review.
-You are in a read-only sandbox: inspect, do not modify.
+Inspect the change between the base and head commits named in the inputs, using their full SHAs, with `git log <base>..<head>` and `git diff <base>...<head>`, and read the surrounding code it depends on. Work committed after the head is outside this review. The evidence directory and the run record are the run's claims, not code under review: use them to test the claims.
+Inspect only: do not modify the repository or anything outside it, except the output file the inputs name.
 Do not open or quote secrets — `.env` files, private keys, credential stores, tokens — even when the change touches code that reads them; reason from the code that handles them.
 </task>
 
@@ -37,7 +37,7 @@ When a conclusion rests on an inference, say so in the finding and keep the conf
 </severity>
 
 <output>
-Return JSON matching the provided schema.
+Return JSON matching the schema named in the inputs, exactly one document, and put it where the inputs' Output line says.
 `verdict` is `needs-attention` if any finding is blocking, otherwise `approve`.
 Each finding names the file and lines, what goes wrong, why this code path is vulnerable, the steps that would confirm it, and the change that would reduce the risk.
 </output>

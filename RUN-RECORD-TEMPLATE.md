@@ -3,13 +3,19 @@
 - status: planned <!-- planned → flying → landed | aborted -->
 - workspace: autopilot/<slug>
 - base: <full commit>
-- tested commit: <full commit> <!-- latest stage commit; evidence must name it -->
+- tested commit: <full commit> <!-- latest commit that changed code; the scripts print it -->
 - contract: docs/autopilot.md
-- current: takeoff <!-- stage <n> — build | gate | review r<k> head <sha> → <findings file> | record -->
+- current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> review r<k> head <sha> → <findings files> | stage <n> record | landing <step> -->
 
 ## Goal
 
 What the human asked for, in their words.
+
+## Preflight
+
+| check | how | result | evidence |
+|---|---|---|---|
+| premise: tests never touch the real HOME | ran the suite with HOME read-only; then removed the guard and saw the suite fail | held | `premise-home.md` |
 
 ## Acceptance criteria
 
@@ -19,7 +25,7 @@ Frozen at takeoff. A run changes `status` and `evidence`, never the criterion; a
 |---|---|---|---|---|
 | C1 | `/api/export` streams 1 GB without exceeding 200 MB RSS | `npm run bench:export` with RSS sampling | open | |
 
-`status` is `open`, `proven`, `failed` or `parked`. At landing none is `open`. `proven` cites evidence of the tested commit, and for a check the run wrote, the mutant that proves it can fail.
+`status` is `open`, `proven`, `failed` or `parked`. At landing none is `open`. `proven` cites current evidence and, for a check the run wrote, the mutant that proves it can fail (`gate-s2.md`, `mutant-c1.md`).
 
 ### Criterion errata
 
@@ -45,13 +51,13 @@ Append only. The human rules on each at landing.
 | id | round | reviewer | finding | status | note |
 |---|---|---|---|---|---|
 | R1 | 1 | codex | export holds the DB cursor open on client abort | blocking-fixed | fixed a1b2c3d4e5f6, test `export aborts release cursor` |
-| R2 | 2 | auditor | C1 evidence predates the fix | fixed-unreviewed | regated at 0f1e2d3c4b5a |
+| R2 | 2 | auditor | C1 evidence predates the fix | fixed-unreviewed | minor; regated as `gate-s2-rerun` |
 
 `status` is one of:
 
 - `blocking-fixed`, `blocking-open` — a blocking finding fixed, or not fixable within the retry limit (its criterion is `failed`)
 - `minor-fixed`, `minor-open`
-- `fixed-unreviewed` — found and fixed in the last round; no reviewer saw the fix
+- `fixed-unreviewed` — found and fixed in the last round; no reviewer saw the fix (the note gives its severity)
 - `parked` — the fix needs a red-line action; see *Parked*
 - `rejected` — could not be confirmed; the note holds the refuting evidence
 - `dispute` — the note states both positions

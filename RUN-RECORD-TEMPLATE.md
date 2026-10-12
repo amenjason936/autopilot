@@ -5,7 +5,7 @@
 - base: <full commit>
 - tested commit: <full commit> <!-- latest commit that changed code; the scripts print it -->
 - contract: docs/autopilot.md
-- current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> review r<k> head <sha> → <findings files> | stage <n> record | landing <step> -->
+- current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing <step> -->
 
 ## Goal
 
@@ -15,6 +15,7 @@ What the human asked for, in their words.
 
 | check | how | result | evidence |
 |---|---|---|---|
+| machine gate at base | `run-gate.sh` (label `gate-base`) | all green | `gate-base.md` |
 | premise: tests never touch the real HOME | ran the suite with HOME read-only; then removed the guard and saw the suite fail | held | `premise-home.md` |
 
 ## Acceptance criteria
@@ -23,7 +24,7 @@ Frozen at takeoff. A run changes `status` and `evidence`, never the criterion; a
 
 | id | criterion | proven by | status | evidence |
 |---|---|---|---|---|
-| C1 | `/api/export` streams 1 GB without exceeding 200 MB RSS | `npm run bench:export` with RSS sampling | open | |
+| C1 | `/api/export` streams 1 GB without exceeding 200 MB RSS | `npm run bench:export` with RSS sampling; mutants `mutant-c1-buffer` | open | |
 
 `status` is `open`, `proven`, `failed` or `parked`. At landing none is `open`. `proven` cites current evidence and, for a check the run wrote, the mutant that proves it can fail (`gate-s2.md`, `mutant-c1.md`).
 
@@ -60,6 +61,7 @@ Append only. The human rules on each at landing.
 - `fixed-unreviewed` — found and fixed in the last round; no reviewer saw the fix (the note gives its severity)
 - `parked` — the fix needs a red-line action; see *Parked*
 - `rejected` — could not be confirmed; the note holds the refuting evidence
+- `approve` — the reviewer returned no findings (one row per such review)
 - `dispute` — the note states both positions
 
 The note holds the commit that fixed it or the evidence that refutes it.

@@ -26,7 +26,7 @@ What keeps a run — and its machine gate — off the red lines: a temporary HOM
 
 ## Machine gate
 
-Commands run after every stage; all must pass. `rerun` says whether a reviewer may run the command again (`safe`) or must rely on the saved output (`no`: slow, costly, or changes state).
+Commands run after every stage; all must pass, and all are green at the base (preflight runs them there). A command that diffs or lints the tree excludes the record paths, e.g. `git diff --check <base>..HEAD -- . ':!<evidence dir>' ':!<run records dir>'`. `rerun` says whether a reviewer may run the command again (`safe`) or must rely on the saved output (`no`: slow, costly, or changes state).
 
 | command | proves | rerun |
 |---|---|---|
@@ -55,7 +55,7 @@ What a run parks. For each, the action and what the run prepares instead.
 
 ## Evidence
 
-The evidence directory: a directory of its own, holding nothing but evidence (the scripts treat it, with the run record, as record paths that may stay uncommitted). Each file is `<label>.md`, one label per run of a check, never overwritten; each records its tested commit. Mutant patches sit beside their evidence as `<label>.patch`. Check the directory is not caught by `.gitignore`, a lint gate (trailing whitespace, file types), or a submodule.
+The evidence directory: a directory of its own, holding nothing but evidence (the scripts treat it, with the run record, as record paths that may stay uncommitted). Each file is `<label>.md`, one label per run of a check, never overwritten; each records its tested commit. Mutant patches stay outside the work tree (under `.git/autopilot/`); the evidence embeds them. Check the directory is not caught by `.gitignore`, a lint gate (trailing whitespace, file types), or a submodule.
 
 ## Review
 

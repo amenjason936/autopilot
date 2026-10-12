@@ -67,7 +67,9 @@ TESTED="$(tested_commit "$TOP")" || die 70 "cannot find the tested commit"
 
 [ -e "$EVIDENCE" ] && die 73 "evidence file already exists: $EVIDENCE
 Evidence is never overwritten: use a label unique to this run of the check, e.g. ${LABEL}-rerun-${TESTED:0:12}.md"
+REPLACED=""
 if [ -e "$EVIDENCE.partial" ]; then
+  REPLACED="$(sed -n 's/^- started: //p' "$EVIDENCE.partial" | head -1)"
   echo "replacing a cut-off run: $EVIDENCE.partial" >&2
   rm -f "$EVIDENCE.partial"
 fi
@@ -88,6 +90,7 @@ trap 'rm -f "$OUTPUT"' EXIT
   printf -- '- tested commit: %s\n' "$TESTED"
   [ "$HEAD_SHA" = "$TESTED" ] || printf -- '- HEAD: %s (record commits only since the tested commit)\n' "$HEAD_SHA"
   printf -- '- code: committed (the gate refuses to start otherwise)\n'
+  [ -z "$REPLACED" ] || printf -- '- replaces a cut-off run of this label started %s\n' "$REPLACED"
   printf -- '- recorded by: %s (sha256 %s)\n' "$SCRIPT" "$(sha256_of "$SCRIPT")"
   printf -- '- started: %s\n' "$(date -u +%FT%TZ)"
   printf -- '- workdir: %s\n' "$WORKDIR"

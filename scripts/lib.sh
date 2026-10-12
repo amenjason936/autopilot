@@ -55,11 +55,12 @@ sha256_of() {
 # 0 seconds = no limit. Stdin is passed through.
 TIMED_OUT=0
 WT_PID=
+WT_MARKER_FILE=
 with_timeout() {
-  local limit="$1" marker status
+  local limit="$1" status
   shift
-  marker="$(make_temp timeout)" || return 70
-  WT_MARKER="$marker" perl -MPOSIX -e '
+  WT_MARKER_FILE="$(make_temp timeout)" || return 70
+  WT_MARKER="$WT_MARKER_FILE" perl -MPOSIX -e '
     my $limit = shift;
     my $pid = fork;
     die "fork failed: $!\n" unless defined $pid;
@@ -95,8 +96,9 @@ with_timeout() {
   status=$?
   WT_PID=
   TIMED_OUT=0
-  [ -s "$marker" ] && TIMED_OUT=1
-  rm -f "$marker"
+  [ -s "$WT_MARKER_FILE" ] && TIMED_OUT=1
+  rm -f "$WT_MARKER_FILE"
+  WT_MARKER_FILE=
   return "$status"
 }
 
@@ -107,6 +109,7 @@ on_signal() {
     kill -TERM "$WT_PID" 2>/dev/null
     wait "$WT_PID" 2>/dev/null
   fi
+  [ -n "${WT_MARKER_FILE:-}" ] && rm -f "$WT_MARKER_FILE"
   exit "$1"
 }
 trap 'on_signal 130' INT

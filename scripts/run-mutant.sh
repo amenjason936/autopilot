@@ -9,7 +9,9 @@
 # Code must be committed, as for run-gate.sh: the check under test has to be
 # in the worktree. Record paths (the evidence directory, $AUTOPILOT_RECORD)
 # may be dirty. Make the patch with `git diff > <patch>` after breaking the
-# code, then restore it with `git checkout -- <files>`.
+# code, then restore it with `git checkout -- <files>`. Keep the patch outside
+# the work tree (e.g. "$(git rev-parse --git-common-dir)/autopilot/"): the
+# evidence embeds it, and a raw patch fails whitespace checks.
 # Env: AUTOPILOT_RECORD run record path; MUTANT_SETUP shell string run in the
 # worktree before anything else (install or link dependencies the worktree
 # lacks); GATE_TIMEOUT seconds per command (default 3600); GATE_TAIL_LINES
@@ -82,9 +84,9 @@ git -C "$TREE" apply --check "$PATCH" 2>"$OUTPUT" || die 65 "patch does not appl
   [ "$COMMIT" = "$TESTED" ] || printf -- '- HEAD: %s (record commits only since the tested commit)\n' "$COMMIT"
   printf -- '- recorded by: %s (sha256 %s)\n' "$SCRIPT" "$(sha256_of "$SCRIPT")"
   printf -- '- started: %s\n' "$(date -u +%FT%TZ)"
-  printf -- '- mutated files: %s\n' "$(git -C "$TREE" apply --numstat "$PATCH" | cut -f3 | tr '\n' ' ')"
-  printf -- '- patch (sha256 %s):\n\n```diff\n' "$(sha256_of "$PATCH")"
-  awk 1 "$PATCH"
+  printf -- '- mutated files: %s\n' "$(git -C "$TREE" apply --numstat "$PATCH" | cut -f3 | paste -sd ' ' -)"
+  printf -- '- patch: %s (sha256 %s; shown with trailing whitespace stripped)\n\n```diff\n' "$PATCH" "$(sha256_of "$PATCH")"
+  clean_output <"$PATCH"
   printf '```\n\n'
 } >"$PARTIAL"
 

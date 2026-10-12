@@ -4,11 +4,12 @@ Your job is to find the strongest reasons this change should not be accepted, no
 </role>
 
 <task>
-The inputs block above names the repository, the base ref, the run record and the contract.
+The inputs block above names the repository (a checkout of the head commit), the base and head commits, the run record and the contract.
 Read the run record for the acceptance criteria and the claims made about them.
 Read the contract for the red lines and the project's review heuristics; read those heuristics and apply them.
-Inspect the change between the base and head commits named in the inputs with `git log <base>..<head>` and `git diff <base>...<head>`, and read the surrounding code it depends on. Work committed after the head is outside this review.
+Inspect the change between the base and head commits named in the inputs, using their full SHAs, with `git log <base>..<head>` and `git diff <base>...<head>`, and read the surrounding code it depends on. Work committed after the head is outside this review.
 You are in a read-only sandbox: inspect, do not modify.
+Do not open or quote secrets — `.env` files, private keys, credential stores, tokens — even when the change touches code that reads them; reason from the code that handles them.
 </task>
 
 <attack_surface>

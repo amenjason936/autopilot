@@ -1,6 +1,6 @@
 # Autopilot contract — <project>
 
-Standing rules for unattended runs (the `autopilot` skill). The human owns this file: a run reads it and never edits it.
+Standing rules for unattended runs (the `autopilot` skill). The human owns this file: a run reads it and never edits it; it proposes changes in its run record.
 
 Status: proposed <!-- becomes "in force since <date>" once the human confirms -->
 
@@ -17,12 +17,28 @@ Checks that must pass before takeoff. One row each: the command, and the result 
 | check | command | ready when |
 |---|---|---|
 
+## Safety premises
+
+What keeps a run — and its machine gate — off the red lines: a temporary HOME, an isolated data directory, a memory cap, offline mode, a sandbox account. Each is attempted at preflight, not assumed.
+
+| premise | how a run attempts it | holds when |
+|---|---|---|
+
 ## Machine gate
 
 Commands run after every stage; all must pass. `rerun` says whether a reviewer may run the command again (`safe`) or must rely on the saved output (`no`: slow, costly, or changes state).
 
 | command | proves | rerun |
 |---|---|---|
+
+Gate settings (environment for `run-gate.sh`):
+
+- `GATE_TIMEOUT`: seconds per command (default 3600)
+- `GATE_KEEP_REGEX`: the suite's verdict line, kept whatever the output length
+- `GATE_ENV`: variables whose values the evidence records — tool locations, flags
+- `MUTANT_SETUP`: what a fresh worktree needs before the checks run (install or link dependencies)
+
+Tool locations are environment variables or persistent paths, never a session's scratch directory.
 
 ## Pre-authorized
 
@@ -39,11 +55,14 @@ What a run parks. For each, the action and what the run prepares instead.
 
 ## Evidence
 
-Where evidence files go, how they are named, and what each records: the command, exit status, time and commit.
+Where evidence files go. Each is named `<label>-<first 12 of the tested commit>.md` and is never overwritten. Use `.md` or `.txt` and check the name is not caught by `.gitignore` or a lint gate (trailing whitespace, file types).
 
-## Review heuristics
+## Review
 
-Paths to project-specific rules the reviewers apply.
+- Heuristics: paths to project-specific rules the reviewers apply.
+- Docs paths: changes that skip the review gate (default: `*.md` outside source directories).
+- Budget: review rounds per stage (default 2), whether stages may share a review gate, and the most review gates per run.
+- Codex: `CODEX_REVIEW_MODEL`, `CODEX_REVIEW_EFFORT` (default high), `CODEX_REVIEW_TIMEOUT` seconds (default 1800).
 
 ## Run records
 

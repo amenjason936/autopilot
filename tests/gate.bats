@@ -3,7 +3,8 @@ load test_helper
 
 @test "gate runs at pinned commit inside a separate worktree" {
   original="$(git -C "$REPO" rev-parse HEAD)"
-  run gate bound "test \"\$PWD\" != '$REPO' && test \"\$(git rev-parse HEAD)\" = '$original' && test \"\$(cat value)\" = safe"
+  original_dir="$(cd "$REPO" && pwd -P)"
+  run gate bound "test \"\$PWD\" != '$original_dir' && test \"\$(git rev-parse HEAD)\" = '$original' && test \"\$(cat value)\" = safe"
   [ "$status" -eq 0 ]
   run bash "$SKILL/scripts/verify-evidence.sh" "$EVID"
   [ "$status" -eq 0 ]

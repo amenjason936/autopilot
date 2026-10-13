@@ -21,11 +21,39 @@ The contract has a committed companion `docs/autopilot-policy.json`:
 
 `GATE_POLICY` may select another repository-relative policy. A repository with a contract but no policy is refused. Gate, dispatch and review identity share that selected path and its pinned content/effective-policy digest. The policy is read from the pinned commit; shell text in Markdown is never evaluated to configure the sandbox. Translate every filesystem/network red line into this policy before authorization. Other red lines remain decisions governed by the approved contract, not something a general-purpose script can infer from prose.
 
-`env-clean` uses `env -i`, current PATH, a new HOME/TMPDIR, `LC_ALL=C`, Git configuration isolation, and only explicitly named variables. When a backend is usable, it adds an OS-enforced read-only source/Git and runner-control/helper/evidence boundary with a real write-denial probe. If the backend is absent or cannot launch, unrestricted `env-clean` runs with endpoint source verification and records **source protection: NOT OS-ENFORCED**. This cannot detect write/test/restore, prevent host writes, or isolate helpers and evidence. A backend that launches but fails its write-denial control is refused rather than downgraded. This mode does **not** restrict other host files or networking. Names containing KEY, TOKEN, SECRET or PASSWORD (case-insensitive), reserved runtime controls and loader/Git injection variables are rejected. Evidence records variable names and set state, never values. A non-secret name may still carry a secret value: do not whitelist one.
+`env-clean` uses `env -i`, current PATH, a new HOME/TMPDIR, `LC_ALL=C`, Git configuration isolation, and only explicitly named variables. When a backend is usable, it adds an OS-enforced read-only source/Git and runner-control/helper/evidence boundary with a real write-denial probe. If the backend is absent or cannot launch, unrestricted `env-clean` runs with endpoint source verification and records **source protection: NOT OS-ENFORCED**. This cannot detect write/test/restore, prevent host writes, or isolate helpers and evidence. Persistent helper/control changes are checked separately before and after every command; this detects tampering without preventing the write itself. A backend that launches but fails its write-denial control is refused rather than downgraded. This mode does **not** restrict other host files or networking. Names containing KEY, TOKEN, SECRET or PASSWORD (case-insensitive), reserved runtime controls and loader/Git injection variables are rejected. Evidence records variable names and set state, never values. A non-secret name may still carry a secret value: do not whitelist one.
 
 A network prohibition or any denied path automatically selects `sandbox-exec` on macOS or `bwrap` on Linux if the requested mode is `env-clean`. Explicit strict modes are allowed; unsupported/missing tools stop the run. There is no silent fallback. Both strict profiles are offline, even for a path-only restriction. They allow reads of the checkout, its Git metadata, HOME/TMPDIR, system runtime roots, and explicit `read_paths`; the checkout and shared Git storage are read-only. Writes go to HOME/TMPDIR, `$AUTOPILOT_OUTPUT`, and newly created relative `write_dirs` declared in policy. A writable directory may not already exist in committed source or traverse a symlink. Setup uses the same restriction: provision dependencies into a new declared cache/output directory, not by rewriting source. Baseline and mutant get fresh outputs. External dependencies still need their own frozen inputs; source immutability is not a claim of fully reproducible builds. Explicit `deny_paths` override those allowances. Default runtime reads are `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, `/System/Library`, `/Library/Apple`, `/private/var/db/dyld`, `/etc`, `/private/etc`, `/dev` where present. Put sensitive subpaths within allowed roots on `deny_paths`. Linux strict mode remounts synthetic root directories read-only while keeping explicit output mounts writable. The root directory itself and directory metadata are visible on macOS; file contents outside the allowlist are not.
 
 macOS uses the installed Seatbelt `sandbox-exec`; Linux needs bubblewrap plus usable user namespaces. A restrictive outer sandbox or disabled namespaces can make preflight fail. This is a deployment limitation, not a passing sandbox test. Strong mode preflight checks an allowed generated file, read/write denial of a generated canary outside the allowlist, and a UDP socket connected to an external IP. UDP connect sends **no packet**: an unsandboxed positive control must succeed and the sandboxed operation must fail. These repeatable probes check the specified boundaries; they do not prove resistance to kernel exploits or every possible external tool. Dependencies must be available offline in approved runtime paths.
+
+## Runner integrity in fallback mode
+
+Before execution, the runner loads its integrity checker into parent-shell memory
+and freezes a digest of the entire helper directory. Symlink and special-file
+inputs are refused rather than following mutable targets outside that directory. Policy, current source-state
+snapshot, sandbox profile and frozen mutant patch are also hashed. Expected digests
+remain in the parent process, not a writable scratch manifest. The checker runs
+from that preloaded code using Python `-I -S`, so project/helper import shadows and
+changes to the on-disk checker cannot replace the verification code.
+
+Every command, including setup and probes, is bracketed by integrity verification.
+A missing, replaced, added or persistently changed helper/control stops the run
+with exit **70**, before another project command or helper/redactor is called.
+A fixed diagnostic is printed directly; no passing evidence is published and any
+partial remains unverified. Restore helpers from a trusted checkout/installation
+before retrying. The runner does not silently restore files or claim that a future
+invocation can authenticate an already compromised initial installation.
+
+The runner refreshes the expected control digest only for its own preparation of
+a fresh tree or an applied mutant snapshot, after checking the preceding state.
+Generate caches/output outside the helper directory; changing its contents during
+a run is an integrity failure, including a concurrent update by another process.
+
+This is endpoint integrity under a trusted initial runtime, **not** OS isolation.
+Transient write/restore, a process racing the checks, or compromise of the parent
+process/interpreter are outside this guarantee. Restrictive policies still require
+a working OS backend; no checksum fallback satisfies a path/network prohibition.
 
 ## Commands and settings
 
@@ -208,3 +236,21 @@ express the full execution policy. This documented fallback does not bypass it.
 Contract **Docs paths** may exempt qualifying stage documentation changes from the
 stage adversary review; record the exemption. They never exempt the landing audit
 or override full-mode requirements for policy/security/skill changes.
+
+
+## Test hosts without a sandbox
+
+`make check` runs the full suite on both kinds of host. Eight tests specifically
+requiring OS write/path/network enforcement or strict training use an independent
+backend launch probe. They report **SKIP: isolation not verified** when no backend
+can launch; portable and fallback-integrity regressions still execute. A backend
+that launches but fails its actual boundary tests is a failure, not a skip.
+Destructive helper tests always use a disposable copy, never the running checkout.
+
+Set `AUTOPILOT_REQUIRE_SANDBOX=1` to turn unavailable isolation coverage into a test
+failure. The enforced Linux/macOS CI jobs set it and additionally reject skipped
+checks before running the regression mutations and strict training. The portable
+Ubuntu job preserves namespace settings and runs the complete suite twice: once on
+the default host and once with unavailable-backend stubs. It also checks that tests
+did not modify tracked checkout files. Skipped tests are not evidence of isolation;
+the default-host results and enforced-backend results must be reported separately.

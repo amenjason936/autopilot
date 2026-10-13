@@ -132,6 +132,7 @@ PY
 }
 
 @test "source write and restore is prevented in env-clean and strict modes" {
+  require_os_sandbox
   for mode in plain strict; do
     if [ "$mode" = strict ]; then
       mkdir "$REPO/docs"
@@ -145,6 +146,7 @@ PY
 }
 
 @test "new declared output directories are writable without exposing source" {
+  require_os_sandbox
   mkdir "$REPO/docs"
   printf '{"version":1,"write_dirs":["out"]}' >"$REPO/docs/autopilot-policy.json"
   commit_fixture
@@ -172,6 +174,7 @@ PY
 }
 
 @test "mutant cannot rewrite its source and retains the registered patch" {
+  require_os_sandbox
   patch_value
   export MUTANT_FAILURE_REGEX='^ASSERT_VALUE_SAFE$'
   run mutant immutability 'if test "$(cat value)" = broken; then if printf unrelated >value; then echo UNREGISTERED_SOURCE_WRITE; exit 2; fi; test "$(cat value)" = broken || exit 2; echo ASSERT_VALUE_SAFE; exit 1; fi'
@@ -191,11 +194,14 @@ PY
 }
 
 @test "readonly source cannot be rewritten through a hardlink alias" {
+  require_os_sandbox
   run gate alias 'if ln value "$HOME/source-alias"; then ! printf changed >"$HOME/source-alias"; fi; test "$(cat value)" = safe'
   [ "$status" -eq 0 ]
 }
 
 @test "commands cannot rewrite runner controls helpers or evidence" {
+  require_os_sandbox
+  isolate_runner
   run gate controls 'for p in "$(dirname "$TMPDIR")/profile.sb" "$(dirname "$TMPDIR")/policy.json" "$(dirname "$TMPDIR")/tree-source.json"; do ! printf corrupted > "$p" || exit 1; done' "! printf corrupted > '$SKILL/scripts/source_state.py'" "! printf forged > '$EVID/controls.md.partial'" 'test "$(cat value)" = safe'
   [ "$status" -eq 0 ]
   run bash "$SKILL/scripts/verify-evidence.sh" "$EVID"

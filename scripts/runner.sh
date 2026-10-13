@@ -11,6 +11,41 @@ PARTIAL=
 DRY_RUN=0
 LITE=0
 
+# Never load a checker or redactor from disk after detecting helper tampering.
+# These values are kept in this parent shell and are not exported to commands.
+runner_integrity_abort() {
+  printf '%s\n' 'FAILED: runner integrity check failed; stopping before further helpers or commands; partial evidence is unverified. Restore trusted helpers before retrying.' >&2
+  exit 70
+}
+
+runner_integrity_digest() {
+  "$INTEGRITY_PYTHON" -I -S -c "$INTEGRITY_CODE" "$@"
+}
+
+runner_helpers_verify() {
+  local actual
+  actual="$(runner_integrity_digest "$SCRIPT_DIR")" || runner_integrity_abort
+  [ "$actual" = "$HELPER_DIGEST" ] || runner_integrity_abort
+}
+
+runner_controls_digest() {
+  runner_integrity_digest "$WORK/policy.json" "$SOURCE_STATE" "$WORK/profile.sb" "$WORK/mutant.patch"
+}
+
+runner_integrity_verify() {
+  runner_helpers_verify
+  if [ -n "${CONTROL_DIGEST:-}" ]; then
+    local actual
+    actual="$(runner_controls_digest)" || runner_integrity_abort
+    [ "$actual" = "$CONTROL_DIGEST" ] || runner_integrity_abort
+  fi
+}
+
+runner_integrity_freeze() {
+  runner_helpers_verify
+  CONTROL_DIGEST="$(runner_controls_digest)" || runner_integrity_abort
+}
+
 runner_cleanup() {
   local tree
   for tree in "${TREE:-}" "${BASELINE_TREE:-}"; do
@@ -43,6 +78,11 @@ runner_options() {
 
 runner_init() {
   require git perl python3 jq
+  INTEGRITY_PYTHON="$(command -v python3)"
+  INTEGRITY_CODE="$(<"$SCRIPT_DIR/integrity.py")" || runner_integrity_abort
+  [ -n "$INTEGRITY_CODE" ] || runner_integrity_abort
+  HELPER_DIGEST="$(runner_integrity_digest "$SCRIPT_DIR")" || runner_integrity_abort
+  CONTROL_DIGEST=
   umask 077
   WORKDIR="$(cd "$1" 2>/dev/null && pwd -P)" || die 66 'workdir not found'
   python3 "$SCRIPT_DIR/evidence.py" path "$2" || die 64 'symlink evidence path refused'
@@ -135,6 +175,7 @@ runner_lock() {
 
 runner_tree() {
   local name="$1" path
+  runner_integrity_verify
   TREE="$WORK/$name"
   safe_worktree_add "$TOP" "$TREE" "$COMMIT" || die 70 'cannot create pinned worktree'
   RUN_HOME="$WORK/$name-home"
@@ -161,6 +202,7 @@ runner_tree() {
       if ! command -v sandbox-exec >/dev/null 2>&1 || [ "$(uname -s)" != Darwin ]; then
         [ "$SANDBOX" = env-clean ] || die 77 'sandbox-exec unavailable; strict policy cannot run'
         BACKEND=none
+        runner_integrity_freeze
         return
       fi
       python3 "$SCRIPT_DIR/policy.py" profile "$TREE" "$RUN_HOME" "$RUN_TMP" "$GIT_COMMON" "$TOP" "$RUN_OUTPUT" "$WORK" "$SCRIPT_DIR" "$EVIDENCE_DIR" <"$WORK/policy.json" >"$WORK/profile.sb" || die 70 'cannot build sandbox profile'
@@ -170,6 +212,7 @@ runner_tree() {
       if ! command -v bwrap >/dev/null 2>&1; then
         [ "$SANDBOX" = env-clean ] || die 77 'bwrap unavailable; strict policy cannot run'
         BACKEND=none
+        runner_integrity_freeze
         return
       fi
       SANDBOX_ARGS=(bwrap --die-with-parent --new-session --unshare-pid --unshare-user --unshare-ipc --unshare-uts --cap-drop ALL)
@@ -203,6 +246,7 @@ runner_tree() {
       SANDBOX_ARGS+=(--chdir "$TREE$SUBDIR")
       ;;
   esac
+  runner_integrity_freeze
 }
 
 runner_exec() {
@@ -215,9 +259,11 @@ runner_exec() {
 
 runner_command() {
   # Invoke with_timeout in this shell so signal handling owns the child group.
+  runner_integrity_verify
   cd "$TREE$SUBDIR" || return 72
   with_timeout "$TIMEOUT" "${RUN_ENV[@]}" ${SANDBOX_ARGS[@]+"${SANDBOX_ARGS[@]}"} /bin/bash --noprofile --norc -o pipefail -c "$1" </dev/null >"$OUTPUT" 2>&1
   COMMAND_STATUS=$?
+  runner_integrity_verify
   cd "$TOP" || return 72
   return "$COMMAND_STATUS"
 }
@@ -236,7 +282,7 @@ runner_probe() {
     runner_command "test \"\$(cat $source_q)\" = immutable && printf writable > $output_q" || return 1
   fi
   if [ "$BACKEND" = none ]; then
-    printf -- '- source protection: NOT OS-ENFORCED (env-clean; backend unavailable). Endpoint snapshots only; transient write/restore is not detected. Host filesystem and network access remain unrestricted.\n' >>"$PARTIAL" || return 1
+    printf -- '- source protection: NOT OS-ENFORCED (env-clean; backend unavailable). Source/control endpoint snapshots only; transient write/restore is not detected. Host filesystem and network access remain unrestricted.\n' >>"$PARTIAL" || return 1
     runner_source_unchanged
     return
   fi
@@ -281,8 +327,9 @@ runner_header() {
     printf -- '- tested commit: %s\n- HEAD: %s\n- workdir: %s\n- sandbox: %s\n' "$TESTED" "$COMMIT" "$WORKDIR" "$SANDBOX"
     printf -- '- started: %s\n- recorded by sha256: %s\n' "$(date -u +%FT%TZ)" "$(sha256_of "$SCRIPT_DIR/$(basename "$0")")"
     printf -- '- policy: %s\n' "$POLICY"
+    printf -- '- helper inventory sha256: %s\n- frozen controls sha256: %s\n' "$HELPER_DIGEST" "$CONTROL_DIGEST"
     local helper helper_hash
-    for helper in lib.sh runner.sh redact.py policy.py evidence.py record_scope.py failure_signature.py source_state.py; do
+    for helper in lib.sh runner.sh redact.py policy.py evidence.py record_scope.py failure_signature.py source_state.py integrity.py; do
       helper_hash="$(sha256_of "$SCRIPT_DIR/$helper")" || exit 70
       printf -- '- helper %s sha256: %s\n' "$helper" "$helper_hash"
     done

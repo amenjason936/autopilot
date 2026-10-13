@@ -36,3 +36,14 @@ no unrelated settings, credentials, skills or host launchers are changed.
 3. Document dependency migration and snapshot-only review; narrow installation payload — complete. The user approved removal of the 300 historical evidence/license files; their bytes were verified against the archive commit and a separate local backup before removal.
 4. Regress on macOS, default/restricted Linux and strict backend — local checks pass (82 cases including the new compatibility coverage; 13 portable Linux cases; strict Linux training). Current run evidence is outside the payload. Exact runtime revision c36f18a passed all three CI jobs, including 82 tests and 33 negative controls per strict platform.
 5. Update PR with per-finding dispositions, breaking changes and directly linked CI results — complete for c36f18a; publish this approved packaging cleanup after local checks, then verify its new CI run. Results are retained in the PR description and CI artifacts.
+
+## Maintainer review round 2 (2026-10-13)
+
+Scope: repair fallback integrity and sandbox-aware tests; update the existing PR.
+The user explicitly excludes synchronizing the four global skill installations.
+
+1. Reproduce persistent helper/control tampering in disposable copies — complete; four initial regressions failed on the submitted implementation, including a false passed gate and KILLED mutant.
+2. Freeze trusted integrity state and check before reusing helpers; isolate destructive tests — complete; focused integrity and compatibility checks pass.
+3. Make complete tests sandbox-aware, with strict CI disallowing skipped isolation checks — complete; default Linux executes all 92 cases with 84 passing and eight explicit isolation skips.
+4. Run default Linux, strict Linux/macOS, and meaningful regression mutations — full-suite checks pass (strict Linux 92/92, macOS 91/91 plus the final symlink regression); fixed-commit 37-control validation follows before publication.
+5. Publish the verified revision and update PR evidence; leave global installations unchanged — pending.

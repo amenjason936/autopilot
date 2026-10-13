@@ -131,6 +131,7 @@ load test_helper
 }
 
 @test "relocated training uses package fixtures despite valid legacy decoys" {
+  require_os_sandbox
   mkdir -p "$CASE/relocated" "$CASE/legacyhome/.claude/skills/autopilot/tests/fixtures/training"
   cp -R "$SKILL/scripts" "$SKILL/tests" "$CASE/relocated/"
   cp "$SKILL/tests/fixtures/training/subject.sh" "$SKILL/tests/fixtures/training/checks.sh" "$CASE/legacyhome/.claude/skills/autopilot/tests/fixtures/training/"

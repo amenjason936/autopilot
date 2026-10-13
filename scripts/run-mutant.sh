@@ -63,7 +63,9 @@ if [ -n "$SETUP" ]; then
   if ! { [ "$PHASE_FAILED" -eq 0 ] && runner_clean_tree; }; then runner_finish 2 'INCONCLUSIVE: mutant setup'; fi
 fi
 git -C "$TREE" apply "$PATCH" >"$OUTPUT" 2>&1 || runner_finish 2 'INCONCLUSIVE: patch no longer applies'
+runner_integrity_verify
 python3 "$SCRIPT_DIR/source_state.py" freeze "$TREE" "$WORK/policy.json" "$SOURCE_STATE" || runner_finish 2 'INCONCLUSIVE: cannot freeze patched source'
+runner_integrity_freeze
 [ -d "$TREE$SUBDIR" ] || runner_finish 2 'INCONCLUSIVE: patch removed workdir'
 runner_phase 'mutant (patched)' "$@"
 runner_unchanged || runner_finish 2 'INCONCLUSIVE: HEAD or source tree changed'

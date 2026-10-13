@@ -42,16 +42,18 @@ STUB
 }
 
 @test "real OS sandbox blocks forbidden path and network with passing positive control" {
+  require_os_sandbox
   mkdir "$REPO/docs"
   printf '{"version":1,"deny_network":true}' >"$REPO/docs/autopilot-policy.json"
   commit_fixture
   run gate strict 'test "$(cat value)" = safe'
-  # No skip: unavailable OS support is a failure, never evidence of isolation.
+  # Once the backend can launch, a failed boundary is a test failure.
   [ "$status" -eq 0 ]
   grep -q 'sandbox probes: PASS' "$EVID/strict.md"
 }
 
 @test "explicit deny path overrides an allowed runtime directory" {
+  require_os_sandbox
   mkdir -p "$CASE/allowed/restricted" "$REPO/docs"
   printf control >"$CASE/allowed/control"
   printf synthetic >"$CASE/allowed/restricted/canary"

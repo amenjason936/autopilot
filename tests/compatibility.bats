@@ -1,15 +1,6 @@
 #!/usr/bin/env bats
 load test_helper
 
-unavailable_backend() {
-  mkdir -p "$CASE/bin"
-  for backend in bwrap sandbox-exec; do
-    printf '#!/bin/sh\necho BACKEND_UNAVAILABLE >&2\nexit 1\n' >"$CASE/bin/$backend"
-    chmod +x "$CASE/bin/$backend"
-  done
-  export PATH="$CASE/bin:$PATH"
-}
-
 @test "env-clean runs with an unavailable backend and discloses its weaker boundary" {
   unavailable_backend
   run gate portable 'test "$(cat value)" = safe; printf artifact > "$AUTOPILOT_OUTPUT/result"'
@@ -93,4 +84,14 @@ unavailable_backend() {
   run env PATH="$CASE/minimal-bin" /bin/bash "$SKILL/scripts/run-gate.sh" "$REPO" "$EVID/strictmissing.md" strictmissing true
   [ "$status" -eq 77 ]
   [ ! -e "$EVID/strictmissing.md.partial" ]
+}
+
+@test "required sandbox mode fails instead of silently skipping unavailable coverage" {
+  unavailable_backend
+  run env AUTOPILOT_REQUIRE_SANDBOX=1 bash -c '. "$1/tests/test_helper.bash"; skip() { echo UNEXPECTED_SKIP; exit 99; }; require_os_sandbox' _ "$SKILL"
+  [ "$status" -eq 1 ]
+  [[ "$output" != *UNEXPECTED_SKIP* ]]
+  run env AUTOPILOT_REQUIRE_SANDBOX=0 bash -c '. "$1/tests/test_helper.bash"; skip() { echo "SKIPPED: $*"; exit 99; }; require_os_sandbox' _ "$SKILL"
+  [ "$status" -eq 99 ]
+  [[ "$output" == *'isolation not verified'* ]]
 }

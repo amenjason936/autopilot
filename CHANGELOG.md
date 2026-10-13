@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — fallback integrity and sandbox-aware tests
+
+- Detect persistent changes to every helper and frozen execution control before
+  and after each command; keep the checker and expected hashes in parent memory,
+  and stop without invoking damaged helpers or publishing passing evidence.
+- Keep the documented endpoint-only limit: fallback detects persistent tampering
+  but cannot prevent host writes, transient restoration, or racing processes.
+- Run destructive helper tests only against disposable copies. Explicitly skip
+  eight isolation-dependent tests if no backend can launch; strict CI requires
+  the backend and refuses skipped isolation coverage.
+- Run the entire default-Linux suite instead of a compatibility subset, also with
+  forced-unavailable backends. Add integrity regressions and four targeted negative
+  controls for helper/control validation and the trusted checker path.
+
 ## Unreleased — maintainer compatibility fixes
 
 - **Breaking migration:** existing contracts require a committed JSON policy;
@@ -27,8 +41,9 @@
 ## 0.2.0-rc.2 — 2026-10-13
 
 - Share selected policy identity across gates, review dispatch and resume (F1).
-- Protect runner policy/snapshot/helper/evidence files against commands rewriting
-  the authority used by subsequent phases (independent rc.2 review).
+- Under an enforced OS backend, protect runner policy/snapshot/helper/evidence
+  files against command writes (independent rc.2 review). Fallback endpoint integrity
+  was added in the unreleased maintainer fix above.
 - Accept valid unnumbered TAP; refuse skip-only TAP even without a plan.
 - Run self-test controls without unsupported nested macOS sandboxing, and mutate
   the actual Linux bwrap cwd control.

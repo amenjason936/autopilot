@@ -31,3 +31,37 @@ diff --git a/value b/value
 PATCH
 }
 commit_fixture() { git -C "$REPO" add .; git -C "$REPO" commit -qm fixture; }
+
+# Destructive runner tests always attack a disposable helper copy.
+isolate_runner() {
+  mkdir -p "$CASE/skill-copy"
+  cp -R "$SKILL/scripts" "$CASE/skill-copy/"
+  SKILL="$CASE/skill-copy"
+  export SKILL
+}
+
+unavailable_backend() {
+  mkdir -p "$CASE/bin"
+  for backend in bwrap sandbox-exec; do
+    printf '#!/bin/sh\necho BACKEND_UNAVAILABLE >&2\nexit 1\n' >"$CASE/bin/$backend"
+    chmod +x "$CASE/bin/$backend"
+  done
+  export PATH="$CASE/bin:$PATH"
+}
+
+# Capability detection is independent of the runner under test. Only a backend
+# that cannot launch is unavailable; a permissive/broken boundary still fails tests.
+require_os_sandbox() {
+  local available=0
+  if [ "$(uname -s)" = Darwin ]; then
+    if command -v sandbox-exec >/dev/null 2>&1 && sandbox-exec -p '(version 1)(allow default)' /usr/bin/true >/dev/null 2>&1; then available=1; fi
+  else
+    if command -v bwrap >/dev/null 2>&1 && bwrap --die-with-parent --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev /bin/true >/dev/null 2>&1; then available=1; fi
+  fi
+  [ "$available" -eq 0 ] || return 0
+  if [ "${AUTOPILOT_REQUIRE_SANDBOX:-0}" = 1 ]; then
+    printf '%s\n' 'OS sandbox backend cannot launch, but this run requires real isolation tests' >&2
+    return 1
+  fi
+  skip 'OS sandbox backend cannot launch; isolation not verified'
+}

@@ -1,0 +1,16 @@
+{
+  "final_head": "d9ca7cea3abe5ad260b296c8e2ac78c563f6e5f0",
+  "macOS": "macOS-26.4-arm64-arm-64bit-Mach-O",
+  "runtime": {
+    "bash": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)\nCopyright (C) 2007 Free Software Foundation, Inc.",
+    "python": "Python 3.14.4",
+    "bats": "Bats 1.14.0",
+    "shellcheck": "ShellCheck - shell script analysis tool\nversion: 0.11.0\nlicense: GNU General Public License, version 3\nwebsite: https://www.shellcheck.net",
+    "git": "git version 2.50.1 (Apple Git-155)"
+  },
+  "linux_image": "sha256:150b77248f116f047822f7dfe6d681912a3a7e7a07303969c64030e7238e9b56",
+  "linux_command": "docker run --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined; readonly immutable bundle and run-script mounts; non-root runner; no privileged/socket/credential mount",
+  "skill_bytes": 8440,
+  "skill_validation": "quick_validate.py: Skill is valid!",
+  "linux_runtime": "Linux 9c38493be938 6.12.76-linuxkit #1 SMP Thu Apr 30 11:19:05 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux\nGNU bash, version 5.2.21(1)-release (aarch64-unknown-linux-gnu)\nPython 3.12.3\nBats 1.10.0\nShellCheck - shell script analysis tool\nversion: 0.9.0\nlicense: GNU General Public License, version 3\nwebsite: https://www.shellcheck.net\nbubblewrap 0.9.0\n"
+}

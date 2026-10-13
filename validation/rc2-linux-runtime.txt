@@ -1,0 +1,9 @@
+Linux 9c38493be938 6.12.76-linuxkit #1 SMP Thu Apr 30 11:19:05 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+GNU bash, version 5.2.21(1)-release (aarch64-unknown-linux-gnu)
+Python 3.12.3
+Bats 1.10.0
+ShellCheck - shell script analysis tool
+version: 0.9.0
+license: GNU General Public License, version 3
+website: https://www.shellcheck.net
+bubblewrap 0.9.0

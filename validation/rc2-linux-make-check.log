@@ -1,0 +1,73 @@
+shellcheck -x -P scripts scripts/*.sh
+python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for root in ("scripts", "tests") for p in pathlib.Path(root).glob("*.py")]'
+bats tests
+1..69
+ok 1 gate runs at pinned commit inside a separate worktree
+ok 2 gate refuses dirty code and does not create evidence
+ok 3 gate failure still executes remaining commands
+ok 4 gate mutation affects only the disposable tree and fails
+ok 5 gate rejects concurrent source HEAD movement
+ok 6 clean environment drops ambient variables and provides a fresh HOME
+ok 7 secret and injection environment names are refused
+ok 8 dry-run prints setup commands and policy without running or writing
+ok 9 partial resume archives old content and never overwrites completed evidence
+ok 10 directory lock rejects concurrent run before executing commands
+ok 11 timeout is recorded and its descendants stop
+ok 12 manifest detects tampering, missing entries, duplicates, and path traversal
+ok 13 gate CLI validates usage paths labels and numeric settings
+ok 14 untrusted output is recorded without executing embedded commands
+ok 15 normal command exit also kills background children ignoring TERM
+ok 16 worktree creation never executes repository smudge filters
+ok 17 dry-run never executes repository fsmonitor callbacks
+ok 18 verifier refuses evidence reached through a symlink directory
+ok 19 initial status and cleanup never execute clean filters
+ok 20 worktree-conditional filters cannot execute before sandboxing
+ok 21 lite requires <=50 changed lines, one stage, no network or publish
+ok 22 mutant suggestions touch only added diff lines and produce applicable patches
+ok 23 findings schema checks verdict extra keys line range and multiple JSON documents
+ok 24 review prompt binds record to head and refuses overwrites
+ok 25 review CLI validates synthetic findings and redacts its log without a live model
+ok 26 suggested patches preserve files without a final newline
+ok 27 mutant KILLED requires green baseline and red mutant
+ok 28 mutant SURVIVED identifies weak tests
+ok 29 red baseline and failed setup are INCONCLUSIVE
+ok 30 mutant missing command is not a KILLED result
+ok 31 mutant setup cannot change baseline source
+ok 32 mutant preserves prior partial and refuses invalid patch
+ok 33 contract policy forces a strong sandbox even when env-clean requested
+ok 34 contract missing policy and malformed policy fail closed
+ok 35 fake sandbox allowing access fails preflight before command
+ok 36 real OS sandbox blocks forbidden path and network with passing positive control
+ok 37 explicit deny path overrides an allowed runtime directory
+ok 38 alternate policy controls review dispatch and frozen request identity
+ok 39 failed git status with empty output cannot prove clean source
+ok 40 failed output filters cannot publish a successful gate
+ok 41 grep I/O errors fail while no matching retained lines remain valid
+ok 42 lite refuses dependency build executable and mode-only changes
+ok 43 record inventory rejects HTML and JSON source but admits registered reports
+ok 44 source write and restore is prevented in env-clean and strict modes
+ok 45 new declared output directories are writable without exposing source
+ok 46 applied mutant snapshot rejects extra edits and patch reversal
+ok 47 mutant cannot rewrite its source and retains the registered patch
+ok 48 skip-only and zero-test TAP detectors are inconclusive rather than survived
+ok 49 readonly source cannot be rewritten through a hardlink alias
+ok 50 commands cannot rewrite runner controls helpers or evidence
+ok 51 valid unnumbered TAP cases count as active tests
+ok 52 skip-only TAP without a plan is inconclusive
+ok 53 redaction covers commands output and configured secret patterns
+ok 54 invalid custom regex and invalid UTF8 suppress the entire block
+ok 55 multiline private key is redacted before output truncation
+ok 56 escaped line separators do not hide a second credential marker
+ok 57 redaction preserves escaped JSON strings in reviewer findings
+ok 58 evidence write failure cannot publish an incomplete success
+ok 59 nonregular partial and unwritable manifest never report success
+ok 60 failure signature rejects unrelated errors and wrong exits
+ok 61 record exclusions reject undeclared source directories
+ok 62 approved record paths cannot contain tracked executable source
+ok 63 lite exact boundary permits 50 doc lines and refuses 51
+ok 64 lite refuses one-line runtime and safety instruction edits
+ok 65 review identity rejects stale head scope and altered findings
+ok 66 restrictive policy parks cloud dispatch before invoking the reviewer
+ok 67 relocated training uses package fixtures despite valid legacy decoys
+ok 68 interrupted side effects stay parked without a safe rerun declaration
+ok 69 committed evidence symlink cannot redirect writer outside the repository

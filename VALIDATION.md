@@ -1,134 +1,85 @@
-# Upgrade validation record — 0.2.0-rc.1
+# Upgrade validation record — 0.2.0-rc.2
 
-- status: landed (local engineering scope complete; external acceptance parked)
-- current: local candidate ready; C6 awaits external reviewers
+- status: local engineering scope complete; external acceptance parked
 - date: 2026-10-13 (Asia/Taipei)
-- base: ce2499990917362d2c9674f59bad2b21f46d1d9b
-- tested commit: 67289c7d8dcf7fa114b44e843aa795eb147c291e
-- scope: user-authorized local upgrade according to the optimization plan, including its Codex supplementary review
-- contract: docs/autopilot.md; local engineering scope, not future external authorization
-- mode: full local validation; external numerical acceptance parked
-- evidence: validation/ and its SHA-256 MANIFEST, committed with this record
+- base: v0.2.0-rc.1 / 23ebeedcd41ebcc2682a077549e598e64c9093ce
+- tested commit: d9ca7cea3abe5ad260b296c8e2ac78c563f6e5f0
+- production implementation: 67195db2788a647a666ca1f74c0d82798ddcf87b
+- scope: user-authorized rc.1 findings repair, regression tests, rc.2 candidate and fresh independent review
+- evidence: validation/ and its SHA-256 MANIFEST; historical artifacts remain preserved
+- authorization: docs/autopilot.md; no global installation, remote push or external cloud review
+
+## Implementation plan completion
+
+1. Requirements and existing patterns: complete; rc.1 findings and original criteria preserved.
+2. Repairs and regression tests: complete; F1–F7/G1 plus three newly confirmed review findings repaired.
+3. Platform checks and negative controls: complete; final macOS and Ubuntu results below.
+4. Fresh independent review and bounded repair/recheck: complete; no open targeted defect, score below 9.
+5. Evidence and local candidate delivery: complete in the accompanying record commit and local rc.2 tag.
 
 ## Acceptance criteria
 
-Original criteria are preserved; the evidence/status columns are updated.
+Original criterion wording is preserved. Earlier rc.1 claims are historical and superseded by this record.
 
-| ID | Frozen criterion | Status and evidence |
+| ID | Frozen criterion | Status and current evidence |
 |---|---|---|
-| C1 | Fixed-commit runners, isolated command environment, enforced policy probes | proven locally: gate-landing-verified.md; verified-p0-1-worktree.md, verified-c1-env-inheritance.md, verified-c1-probe-enforcement.md and sandbox/callback controls |
-| C2 | Full-hash manifests, redaction, locks and preserved interrupted evidence | proven locally: manifest/redaction/lock/partial controls, verified-supplement-evidence-write.md, verified-supplement-record-scope.md and verified-author-output-symlink.md |
-| C3 | Diff-limited mutation suggestions, deterministic lite mode, independent review rules | proven for scripts and rule artifacts: verified-c3-diff-only.md, verified-c3-lite-boundary.md, verified-supplement-lite-risk.md and review identity/policy controls; model behavior limitation below |
-| C4 | Portable package, concise skill, complete example, license/version/CI | proven as local artifacts and relocated execution: verified-c4-portability.md, gate-landing-verified.md; CI configuration inspected, hosted execution unverified |
-| C5 | Local Bats/ShellCheck, fixed training ground, executable P0 negative controls | proven locally: 54 tests, 24 current KILLED controls, verified-controls.json, training-verified.bundle; failure-signature control checks the negative-control classifier |
-| C6 | External four-party safety >=8.5 and average >=9 | parked: no external four-party scores have been supplied |
+| C1 | Fixed-commit runners, isolated command environment, enforced policy probes | proven in scoped fixtures on both platforms; rc2-*-make-check.log, current worktree/env/probe/source-readonly/control-root controls |
+| C2 | Full-hash manifests, redaction, locks and preserved interrupted evidence | proven in fixtures; current manifest/redaction/lock/partial/write-failure/record-inventory controls and final manifest verification |
+| C3 | Diff-limited mutation suggestions, deterministic lite mode, independent review rules | script behavior proven; current diff/lite/review-policy/review-identity controls, independent reports; model behavior remains unverified |
+| C4 | Portable package, concise skill, complete example, license/version/CI | real macOS and Ubuntu execution, relocated package test, both training bundles; hosted CI remains unverified |
+| C5 | Local Bats/ShellCheck, fixed training ground, executable P0 negative controls | 69/69 tests per platform, 33/33 KILLED controls per platform, both complete training runs |
+| C6 | External four-party safety >=8.5 and average >=9 | parked; no external four-party scores supplied; scoped fresh-agent six-dimensional mean is 8.85/10, not 9 |
 
-## Results and provenance
+## Current execution evidence
 
-- `make check`: 54/54 Bats tests, zero ShellCheck diagnostics, Bash/Python syntax passed.
-- Final machine gate: `gate-landing-verified.md`, running both `make check` and the
-  complete fixed training ground from code commit `67289c7d8dcf7fa114b44e843aa795eb147c291e`.
-- 24 executable controls: every baseline is green, every mutant matches its frozen
-  failure signature and returns KILLED. `verified-controls.json` lists source,
-  selection provenance and evidence. The embedded patches and commands allow replay.
-- Skill Creator validation passed. SKILL.md is 8,366 bytes versus 14,370 at baseline
-  (58.2%). Details live in REFERENCE.md; manual invocation policy is preserved.
-- Runtime: macOS, Bash 3.2.57, Python 3.14.4, Bats 1.14.0, ShellCheck 0.11.0, jq 1.7.1.
-- Real OS checks ran outside Codex's outer sandbox, which prohibits nested
-  sandbox-exec. The skill's own OS sandbox remained enabled. Synthetic allowed
-  reads, forbidden reads/writes and denied external-address UDP socket creation
-  were exercised; the UDP connect probe transmits no payload.
-- The training fixture catches the seeded boundary bug, demonstrates SURVIVED
-  with a weak guard detector, then KILLED with a strengthened signed assertion,
-  enforces file/network red lines, passes its final check and verifies seven files.
-  Its full Git history, contract, record and evidence are in training-verified.bundle.
+- `rc2-mac-make-check.log`, `rc2-linux-make-check.log`: 69/69 Bats, ShellCheck and Bash/Python syntax pass. The macOS suite ran on the exact tree committed as d9ca7cea3abe5ad260b296c8e2ac78c563f6e5f0; Linux cloned its immutable Git bundle.
+- `rc2-mac-controls.json` and `rc2-linux-controls.json`: 33 targets each, baseline green and signed target failure for every KILLED result. Current Markdown controls use prefixes `rc2-release-mac-` / `rc2-linux-` at d9ca7cea3abe5ad260b296c8e2ac78c563f6e5f0. Patches are embedded; retained worktrees make local diagnosis inspectable.
+- `rc2-mac-training.log`, `rc2-linux-training.log`, and their `.bundle` files: seeded logic failure caught; weak detector SURVIVED; strengthened detector KILLED; file/network red lines blocked; final checks passed; seven evidence artifacts verified per training run.
+- `rc2-runtime.json`: host/container versions, image identity, execution configuration and limits. Linux used local Ubuntu 24.04, non-root runner and actual bubblewrap namespaces. Docker outer seccomp/AppArmor/system-path masking were relaxed to permit nested user namespaces/proc mounts; no privileged mode, Docker socket or credential mounts. This verifies bwrap behavior in that local VM, not hosted Actions or every Linux kernel.
+- Skill Creator quick validation passed. SKILL.md remains 8,440 bytes versus original 14,370 (58.7%); manual invocation is preserved; implicit invocation is disabled through allow_implicit_invocation:false.
 
-All `verified-*` controls and `gate-landing-verified.md` test the current code SHA.
-Older `p0-*`, `final-*`, other gate records and older bundles are retained as
-historical evidence only. They are not substituted for current results. The frozen
-contract, run-record snapshots, scripts and tests are inspectable at their commits.
+## Repair ledger
 
-## Independent mutation targets
+| Finding | Change | Regression / current control |
+|---|---|---|
+| F1 alternate policy ignored by reviewer | shared pinned policy selection and effective-policy/input identity | alternate policy dispatch/identity; policy-selection and review-policy controls |
+| F2 Git errors mistaken for clean state | explicit failure propagation for source and worktree status | source-only Git I/O fault; git-errors control |
+| F3 mutant source drift accepted | expected actual byte/mode/link snapshot after patch; verify every command | extra edit and patch reversal cases; source-snapshot control |
+| F4 tail/grep errors swallowed | propagate I/O failures, retain valid grep no-match | failed-filter and grep-I/O cases; filter-errors control |
+| F5 unsafe lite eligibility | only nonexecutable .md/.rst docs, risky names/modes rejected | requirements/build/executable/mode-only cases; lite-data/lite-risk controls |
+| F6 Linux sandbox test skipped | portable fake backend and real Linux execution; skip-only activity guard | fake sandbox and 69 Linux tests; skip-only control |
+| F7 extension-only record exclusions | pinned artifact inventory and full hashes, separately checked live inventory | HTML/JSON rejection, registered HTML acceptance, live-manifest cannot authorize pinned source; record-inventory control |
+| G1 transient source rewrite | every execution mode protects source/Git; dedicated new output directories | write/restore, hardlink, valid output directory tests; source-readonly control |
+| rc.2 security finding | protect runner scratch controls, helper scripts and evidence from command writes | independently replayed old/new behavior; control-root control |
+| rc.2 TAP R1 | accept valid unnumbered/bare TAP test lines | unnumbered positive and skipped negative cases |
+| rc.2 TAP R2 | identify plan-free skip-only TAP as inconclusive | gate and mutant no-plan skip-only cases |
 
-| Criterion | Selected by | Condition challenged | Current evidence |
-|---|---|---|---|
-| C1 | forward reviewer + acceptance auditor | pinned cwd; inherited ambient env; unconditional probe success; sandbox upgrade/Git callbacks | verified-p0-1-worktree.md; verified-c1-env-inheritance.md; verified-c1-probe-enforcement.md; verified-p0-4-*.md |
-| C2 | forward/supplemental reviewer | hash comparison; masking; lock/archive; swallowed write errors; source excluded as records | verified-p0-2-manifest.md; verified-p0-3-*.md; verified-p0-7-*.md; verified-supplement-evidence-write.md; verified-supplement-record-scope.md |
-| C3 | acceptance auditor + supplemental reviewer | untouched-line mutations; 51-line admission; runtime/security lite admission; stale review reuse/forbidden dispatch | verified-c3-*.md; verified-supplement-lite-risk.md; verified-supplement-review-*.md |
-| C4 | acceptance auditor | hardcoded legacy fixture root despite relocated package and valid decoy | verified-c4-portability.md |
-| C5 | supplemental reviewer; original forward reviewer | arbitrary nonzero exit being called KILLED; runtime safety detectors challenged by the P0 suite | verified-supplement-failure-signature.md; verified-controls.json |
+F1–F7/G1 were implemented in 60fb48d; follow-up controls, helper/evidence protection and TAP fixes in 67195db. d9ca7cea3abe5ad260b296c8e2ac78c563f6e5f0 includes test-only refinements to isolate redundant checks and compare canonical physical paths; production scripts remain unchanged. A Linux strict-root writability issue discovered during real platform validation was also repaired before 60fb48d.
 
-`verified-p0-6-output-data.md` is an **author-added shell data-handling control**,
-not the independent reviewer's proposed LLM injection experiment.
-`verified-author-output-symlink.md` is an additional author-discovered writer-path
-control. Neither is misattributed as an independent model-level result.
+## Independent review and scoring
 
-## Review finding ledger
+`rc2-review-initial.md` froze a fresh-context review of 60fb48d before consulting historical scores. Its two confirmed TAP defects were repaired. A separate fresh security reviewer reported the runner-control-file defect; that agent did not complete a written report. Its finding was independently replayed and checked by the final reviewer.
 
-The final independent audit at `f0bdc03b5f4a8cc0a1144ae0c2029d82a93fd631` found
-no remaining local acceptance blocker and carried R5-R14. It verified 72 evidence
-files and independently reran nine focused tests (9/9 passed). Its one minor
-fix-attribution correction is applied below. The final report is preserved as
-`acceptance-review-final.md`; the later landing record changes no tested source.
-Every fix below has its named passing regression and current control where relevant.
+`rc2-review-final.md` records the bounded second review of immutable 67195db: five targeted Bats cases plus direct old/new repair experiments, seven verified records. `rc2-review-results.json` and prefixed direct evidence preserve the checks. Final test-only changes and main-host full-platform results are separately attributed; they are not represented as the reviewer's own executions.
 
-| ID | Reviewer / round | Finding | Status | Fix commit and detector |
-|---|---|---|---|---|
-| R1 | independent forward test | host Git callbacks escaped the command boundary | blocking-fixed | 12d1cd7; smudge/fsmonitor/clean canary tests; current verified-p0-4-git-callback.md |
-| R2 | independent forward test | evidence directory symlink could verify unpinned bytes | blocking-fixed | 12d1cd7; `verifier refuses evidence reached through a symlink directory` |
-| R3 | independent forward test | escaped adjacent assignments bypassed masking | blocking-fixed | 12d1cd7; `escaped line separators do not hide a second credential marker` |
-| R4 | independent forward recheck | includeIf activated filters only in linked worktrees | blocking-fixed | 12d1cd7 implementation; 6971c45 adds the control; conditional-filter regression and independent-recheck.json; current verified-p0-4-conditional-filter.md |
-| R5 | acceptance audit 1 | C1/C3/C4 lacked substantive clause/independent-target controls | blocking-fixed | 1fb6c95; env/probe/diff/exact50-51/relocated-package tests and current controls |
-| R6 | acceptance audit 1 | finding statuses and fix/test ledger missing | minor-fixed | f0bdc03; explicit finding rows and the independent target table |
-| R7 | supplemental reviewer | incomplete evidence could be published after write failure | blocking-fixed | 1fb6c95; `evidence write failure cannot publish an incomplete success`; verified-supplement-evidence-write.md |
-| R8 | supplemental reviewer | non-target mutant failures could count as KILLED | blocking-fixed | 1fb6c95; `failure signature rejects unrelated errors and wrong exits`; verified-supplement-failure-signature.md |
-| R9 | supplemental reviewer | restricted cloud review had no equivalent policy boundary | blocking-fixed | 1fb6c95; cloud dispatch parks before invocation; verified-supplement-review-policy.md |
-| R10 | supplemental reviewer | caller record paths could hide source; freshness too narrow | blocking-fixed | 1fb6c95; source exclusion regressions, verified-supplement-record-scope.md; conservative freshness rule in both references |
-| R11 | supplemental reviewer | tiny security/runtime changes could use lite | blocking-fixed | 1fb6c95; one-line auth/skill tests; verified-supplement-lite-risk.md |
-| R12 | supplemental reviewer | review reuse lacked input/job identity | blocking-fixed | 1fb6c95; stale head/scope/altered-output regression; verified-supplement-review-identity.md |
-| R13 | supplemental reviewer | retries/publication lacked explicit admission rules | blocking-fixed | 1fb6c95; interrupted side-effect test and verified-supplement-resume.md; publication prerequisites in SKILL/REFERENCE/contract template |
-| R14 | author final path check | committed output symlink redirected writer outside repo | blocking-fixed | 67289c7; committed output-link regression; verified-author-output-symlink.md |
+Final six-dimensional equal-weight score: 8.85/10. This is a same-family fresh-context engineering assessment, not four external parties or live cross-model acceptance. No target score was requested from the reviewers. All confirmed targeted defects are resolved; remaining scope limitations are not silently promoted to runtime failures or treated as demonstrated guarantees.
 
-| R15 | final acceptance audit | R4 attributed the implementation to its later control commit | minor-fixed | final landing record corrects R4 to 12d1cd7; independent audit verified Git history; tested source unchanged |
+## Failed attempts and provenance
 
-The original finding artifacts are independent-review.md, independent-recheck.json,
-acceptance-review-r1.md and supplemental-review.md. The acceptance auditor's old
-worker rerun hit outer-sandbox restrictions; that is not represented as a passing
-strict OS run. Current passing OS evidence comes from the final main-host gate.
+- `rc2-mac-p0-1-worktree.md`: old nested self-test harness was INCONCLUSIVE on macOS because nested sandbox-exec is unsupported.
+- `rc2-initial-linux-worktree.md`: the old Linux cwd target SURVIVED because bwrap's own --chdir remained effective. The revised target attacks that actual setting.
+- `rc2-final-mac-*` at 67195db and `rc2-round2-linux-*.md`: 31/33 controls killed; Git and inventory targets survived because redundant guards still rejected the fixture. Final tests isolate source status from worktree status and pinned inventory from live inventory. These failures remain historical, not counted as passing current controls.
+- `rc2-verified-mac-*` at 6c54194: 32/33 controls killed. The worktree target survived because /var and /private/var aliases made a wrong working directory appear different; the final test compares physical canonical paths. The corresponding Linux round was 33/33. Both remain historical.
+- The self-test controller executes Bats in separate fixed-commit worktrees on the host. Each fixture invokes the real OS backend. It has no nested immutable outer sandbox and is not evidence that arbitrary hostile patches are contained. Synthetic fixtures contain no production secrets.
+- Historical rc.1 records/reports/bundles and original finding ledger remain in Git and validation/. Their previous scores and guarantees do not override this rc.2 assessment.
 
-## Parked and not verified
+## Remaining limits
 
-- **C6:** request the four actual reviewers' re-ratings against this candidate and
-  archive their reports before claiming safety >=8.5 / average >=9. No score is invented.
-- **Model prompt injection:** scripts prove logs are data, and the instructions
-  state the trust boundary. Live reviewer injection tests and cross-model behavior
-  remain unverified. Static wording and shell controls cannot substitute for them.
-- **Linux / hosted CI:** the Ubuntu/macOS workflow is configured; Linux/bubblewrap
-  and remote Actions have not run here. Local Docker was unavailable. Trigger the
-  configured workflow only when repository publication is authorized.
-- **Isolation limits:** the outer self-validation runner uses env-clean as the
-  contract states; it does not confine the host. Synthetic tests exercise the inner
-  OS sandbox. Security controls here are narrowly authored fixture mutations, not
-  an adversarial containment certification. Writes inside a disposable checkout
-  remain allowed; post-checks alone cannot detect every transient write-and-restore.
-- **Process/durability limits:** process-group cleanup does not establish containment
-  of descendants deliberately escaping the group/session. SIGKILL/power-loss and
-  disk-full fault injection are not claimed proven by ordinary writes/TERM tests.
-  Production guarantees need appropriate outer job supervision and platform tests.
-- **Trust:** a manifest binds bytes to a selected Git commit; it is not an
-  authenticated signature or proof that a reviewer obeyed its instructions.
-- **Publication:** local code/record commits and a candidate tag are preparation.
-  Global skill installation, remote push/release and unrestricted cloud review are
-  outside this completed local scope; outstanding external acceptance is explicit.
+External four-party C6 acceptance, live model prompt-injection testing, hosted Actions, authenticated execution attestation and independent production use remain unverified. env-clean protects selected execution/control/evidence roots but permits other host/network access. The TAP helper is an activity guard, not a complete test harness. macOS process groups do not contain intentionally session-escaping descendants; stronger lifecycle guarantees require an outer supervisor. Power-loss/SIGKILL durability and disk-full fault coverage are not claimed complete. Read-only builds require explicit writable output/cache directories. Hashes bind bytes to a selected Git commit; they do not prove execution truth or reviewer independence.
 
-## Acceptance walk
+## Verification
 
-1. Verify `bash scripts/verify-evidence.sh validation` at the reviewed record commit.
-2. Read gate-landing-verified.md: both commands exit 0, all 54 tests pass, and the
-   fixture prints TRAINING PASSED after seven verified results.
-3. Read verified-controls.json and its 24 named files; inspect frozen signatures,
-   green baselines and the target failures rather than accepting exit codes alone.
-4. Verify `git bundle verify validation/training-verified.bundle`; replay the complete
-   example in a new temporary directory as described by examples/README.md.
-5. Inspect review findings, their ledger dispositions and the explicit unverified
-   items before promoting the candidate to an externally accepted release.
+1. `bash scripts/verify-evidence.sh validation` at the record/tag commit.
+2. Inspect current make-check logs, both 33-entry results JSON files, embedded patches and baseline/failure signatures.
+3. `git bundle verify validation/rc2-mac-training.bundle` and the Linux equivalent.
+4. Read the independent final report and unresolved external acceptance before promoting the candidate.

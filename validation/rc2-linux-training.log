@@ -1,0 +1,27 @@
+[gate] exit 1
+FAILED
+evidence: /home/runner/proof/training/repo/evidence/logic-bug.md (tested commit 034c1691caaf85f080d0760b07e2f8222c2f8c12)
+[gate] exit 0
+passed
+evidence: /home/runner/proof/training/repo/evidence/boundary-fixed.md (tested commit fbcf3db6ccee0c2828711cea51e63d0d9ec438ae)
+[baseline (unpatched)] exit 0
+[mutant (patched)] exit 0
+SURVIVED
+evidence: /home/runner/proof/training/repo/evidence/weak-detector.md (tested commit fbcf3db6ccee0c2828711cea51e63d0d9ec438ae)
+[baseline (unpatched)] exit 0
+[mutant (patched)] exit 1
+KILLED
+evidence: /home/runner/proof/training/repo/evidence/strong-detector.md (tested commit 0dc800b58c1b37e877f57f1696e0854ff318b354)
+[gate] exit 1
+FAILED
+evidence: /home/runner/proof/training/repo/evidence/forbidden-read.md (tested commit af0139a3cb0a2b1b68dbedd4ee571a51ea48885c)
+[gate] exit 9
+FAILED
+evidence: /home/runner/proof/training/repo/evidence/forbidden-network.md (tested commit af0139a3cb0a2b1b68dbedd4ee571a51ea48885c)
+[gate] exit 0
+passed
+evidence: /home/runner/proof/training/repo/evidence/landing.md (tested commit af0139a3cb0a2b1b68dbedd4ee571a51ea48885c)
+verified: 7 evidence file(s)
+TRAINING PASSED
+record: /home/runner/proof/training/repo/run.md
+evidence: /home/runner/proof/training/repo/evidence

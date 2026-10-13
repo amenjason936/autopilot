@@ -25,3 +25,11 @@ Do not invent a 9/10 rating or four-party approval. Real platform/model results 
 This follow-up is explicitly authorized by the user, including global replacement
 and GitHub publication. Backups preserve previous folders and symlink targets;
 no unrelated settings, credentials, skills or host launchers are changed.
+
+## Maintainer review response (2026-10-13)
+
+1. Reproduce author feedback and preserve submitted evidence — complete; original tree retained on archive/rc2-full-evidence-20261013.
+2. Restore portable env-clean, manual invocation, safe preflight retry and explicit review scopes — complete.
+3. Document dependency migration and snapshot-only review; narrow installation payload — complete. Historical evidence/license removal awaits the user's file-deletion confirmation.
+4. Regress on macOS, default/restricted Linux and strict backend — local checks pass (82 cases including the new compatibility coverage; 13 portable Linux cases; strict Linux training). Current run evidence is outside the payload; fresh CI and negative controls follow the commit.
+5. Update PR with per-finding dispositions, breaking changes and directly linked CI results — pending.

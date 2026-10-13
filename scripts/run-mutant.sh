@@ -2,7 +2,7 @@
 # run-mutant.sh [--dry-run] <workdir> <evidence-file> <label> <patch> <command>...
 # Exit: 0 KILLED/preview; 1 SURVIVED; 2 INCONCLUSIVE (setup/baseline/infrastructure);
 # 64 usage/policy/record patch; 65 dirty/invalid patch; 66 missing; 69 missing tool;
-# 70 internal; 73 exists/locked; 77 sandbox failed; 129/130/143 signal.
+# 70 internal; 73 exists/locked; 76 unsafe retry; 77 sandbox failed; 129/130/143 signal.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 # shellcheck source=lib.sh
@@ -29,9 +29,8 @@ runner_lock
 # Copy the patch now: later edits to the caller's patch cannot alter this run.
 cp "$PATCH" "$WORK/mutant.patch" || die 70 'cannot freeze patch'
 PATCH="$WORK/mutant.patch"
-runner_header Mutant
 runner_tree tree
-runner_probe || runner_finish 77 'INCONCLUSIVE: sandbox preflight (red line)'
+runner_preflight
 git -C "$TREE" apply --check "$PATCH" >"$OUTPUT" 2>&1 || die 65 'patch does not apply at pinned HEAD'
 MUTATED="$(git -C "$TREE" apply --numstat "$PATCH" | cut -f3)"
 [ -n "$MUTATED" ] || die 65 'empty patch'
@@ -42,6 +41,7 @@ while IFS= read -r file; do
 done <<EOF
 $MUTATED
 EOF
+runner_header Mutant
 {
   printf -- '- failure signature: %s; expected exit: %s\n' "${MUTANT_FAILURE_REGEX:-<unset; KILLED is unavailable>}" "${MUTANT_FAILURE_EXIT:-1}"
   printf -- '- mutated files: %s\n- patch sha256: %s\n\n```diff\n' "$MUTATED" "$(sha256_of "$PATCH")"

@@ -56,7 +56,7 @@ Commit `docs/autopilot-policy.json` alongside this contract. Example:
 List every forbidden absolute filesystem path in `deny_paths`; set `deny_network`
 for a network prohibition. The script upgrades `env-clean` to a supported OS sandbox
 when either restriction is present. No sandbox tool or a failed positive/negative
-probe is a red line, never permission to downgrade. All modes protect source/Git as read-only. Setup and commands write to temporary HOME/TMPDIR, `$AUTOPILOT_OUTPUT`, or new dedicated `write_dirs`; existing source directories cannot be writable. Read paths extend the documented
+probe is a red line, never permission to downgrade. Unrestricted env-clean uses OS source protection where available and discloses endpoint-only verification otherwise; strict policies always require OS enforcement. Setup and commands write to temporary HOME/TMPDIR, `$AUTOPILOT_OUTPUT`, or new dedicated `write_dirs`; existing source directories cannot be writable. Read paths extend the documented
 system-runtime allowlist. Preflight uses generated canaries, not actual secrets.
 Natural-language red lines do not configure the operating system: the human reviews
 both this file and its JSON companion. See REFERENCE.md in the skill.
@@ -85,7 +85,7 @@ The evidence directory: a directory of its own, holding nothing but evidence (th
 
 ## Review
 
-- Boundary: reviewers/fallbacks/auditors must honor the same approved data and tool constraints; a cloud launcher unable to enforce a restrictive policy parks dispatch.
+- Boundary: name approved review models/data/costs and whether the snapshot-only fallback in REFERENCE.md is allowed. A fallback/auditor reads only sanitized pinned inputs, executes no tools, and discloses the absence of OS enforcement. A ban on networking for all processes includes cloud review unless separately amended; the cloud launcher still parks restrictive-policy dispatch.
 - Identity: preserve the runner request and receipt; validate expected job/base/head/scope/input hashes before reusing findings.
 - Heuristics: paths to project-specific rules the reviewers apply.
 - Docs paths: changes that skip the review gate (default: `*.md` outside source directories).

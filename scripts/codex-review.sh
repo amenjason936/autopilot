@@ -3,7 +3,7 @@
 # sandbox inside a throwaway worktree checked out at the pinned head, so it
 # reviews exactly that commit while the run keeps working. The only files this
 # writes are the findings file and its log.
-#   codex-review.sh [--prompt-only] <repo> <base-ref> <run-record> <out-file> [focus ...]
+#   codex-review.sh [--prompt-only] [--scope "stage N|landing"] <repo> <base-ref> <run-record> <out-file> [focus ...]
 # --prompt-only prints the adversary prompt for a fallback reviewer (no codex
 # needed) instead of running codex; that reviewer writes <out-file>, and
 # validate-findings.sh checks it.
@@ -20,14 +20,21 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: codex-review.sh [--prompt-only] <repo> <base-ref> <run-record> <out-file> [focus ...]" >&2
+  echo "usage: codex-review.sh [--prompt-only] [--scope SCOPE] <repo> <base-ref> <run-record> <out-file> [focus ...]" >&2
   exit 64
 }
 PROMPT_ONLY=0
-if [ "${1:-}" = "--prompt-only" ]; then
-  PROMPT_ONLY=1
-  shift
-fi
+EXPLICIT_SCOPE="${CODEX_REVIEW_SCOPE:-}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --prompt-only) PROMPT_ONLY=1; shift ;;
+    --scope)
+      [ $# -ge 2 ] || usage
+      EXPLICIT_SCOPE="$2"; shift 2 ;;
+    --*) usage ;;
+    *) break ;;
+  esac
+done
 [ $# -ge 4 ] || usage
 
 SKILL_DIR="${AUTOPILOT_HOME:-$(cd "$(dirname "$0")/.." && pwd -P)}"
@@ -47,7 +54,16 @@ FOCUS="${*:-none}"
 EFFORT="${CODEX_REVIEW_EFFORT:-high}"
 TIMEOUT="${CODEX_REVIEW_TIMEOUT:-1800}"
 MODEL="${CODEX_REVIEW_MODEL:-}"
-SCOPE="${CODEX_REVIEW_SCOPE:-landing}"
+# Preserve legacy callers passing "stage N" as the focus argument.
+LEGACY_SCOPE=
+if [[ "$FOCUS" =~ ^stage[[:space:]]+([1-9][0-9]*)([[:space:]]|$) ]]; then
+  LEGACY_SCOPE="stage ${BASH_REMATCH[1]}"
+fi
+SCOPE="${EXPLICIT_SCOPE:-${LEGACY_SCOPE:-landing}}"
+[[ "$SCOPE" = landing || "$SCOPE" =~ ^stage[[:space:]][1-9][0-9]*$ ]] || die 64 'scope must be landing or stage N'
+if [ -n "$EXPLICIT_SCOPE" ] && [ -n "$LEGACY_SCOPE" ] && [ "$EXPLICIT_SCOPE" != "$LEGACY_SCOPE" ]; then
+  die 64 'explicit scope conflicts with stage focus'
+fi
 HEAD_REF="${CODEX_REVIEW_HEAD:-HEAD}"
 require_seconds CODEX_REVIEW_TIMEOUT "$TIMEOUT"
 
@@ -98,7 +114,7 @@ git -C "$REPO" cat-file -e "$HEAD_SHA:$RECORD_REL" 2>/dev/null || die 66 'run re
 
 python3 "$SKILL_DIR/scripts/review_identity.py" create "$REPO" "$BASE_SHA" "$HEAD_SHA" "$RECORD_REL" "$SCOPE" "$SKILL_DIR" "$REQUEST"
 if [ "$PROMPT_ONLY" -eq 0 ]; then
-  python3 "$SKILL_DIR/scripts/review_identity.py" dispatch "$REPO" "$HEAD_SHA" "$SKILL_DIR" || die 77 'review parked: the committed restrictive policy cannot be enforced by this cloud-review launcher; use an equivalently constrained approved reviewer'
+  python3 "$SKILL_DIR/scripts/review_identity.py" dispatch "$REPO" "$HEAD_SHA" "$SKILL_DIR" || die 77 'review parked: the committed restrictive policy cannot be enforced by this cloud-review launcher; use the approved snapshot-only review path in REFERENCE.md'
 fi
 
 if [ "$PROMPT_ONLY" -eq 1 ]; then

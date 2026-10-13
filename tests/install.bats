@@ -31,8 +31,10 @@ setup_package() {
   run python3 "$PACKAGE/scripts/install-skill.py" --host codex --dest "$dest" --replace
   [ "$status" -eq 0 ]
   [ ! -e "$dest/stale.txt" ]
-  cmp "$PACKAGE/SKILL.md" "$dest/SKILL.md"
-  cmp "$PACKAGE/extra-data.txt" "$dest/extra-data.txt"
+  ! grep -q '^disable-model-invocation:' "$dest/SKILL.md"
+  [ ! -e "$dest/extra-data.txt" ]
+  [ ! -e "$dest/validation" ]
+  [ ! -e "$dest/tests/install.bats" ]
   python3 - "$dest" <<'PY'
 import pathlib,json,hashlib,sys
 p=pathlib.Path(sys.argv[1]);r=json.loads((p/'INSTALLATION.json').read_text())
@@ -99,4 +101,30 @@ PY
   run python3 "$PACKAGE/scripts/install-skill.py" --host zcode --dest "$CASE/refused/autopilot"
   [ "$status" -eq 1 ]
   [ ! -e "$CASE/refused" ]
+}
+
+@test "failed install staging remains outside skill discovery and payload excludes run artifacts" {
+  setup_package
+  mkdir -p "$PACKAGE/validation" "$PACKAGE/.github/workflows" "$PACKAGE/tests" "$PACKAGE/examples"
+  printf evidence >"$PACKAGE/validation/report.md"
+  printf ci >"$PACKAGE/.github/workflows/ci.yml"
+  printf tests >"$PACKAGE/tests/install.bats"
+  printf example >"$PACKAGE/examples/README.md"
+  dest="$CASE/skills/autopilot"
+  # Invalid frontmatter fails after staging, before replacing the installation.
+  printf malformed >"$PACKAGE/SKILL.md"
+  run python3 "$PACKAGE/scripts/install-skill.py" --host codex --dest "$dest"
+  [ "$status" -eq 1 ]
+  [ ! -e "$dest" ]
+  [ -z "$(find "$CASE/skills" -name SKILL.md -print)" ]
+  [ -n "$(find "$CASE/skill-backups" -name SKILL.md -print)" ]
+  cp "$SKILL/SKILL.md" "$PACKAGE/SKILL.md"
+  run python3 "$PACKAGE/scripts/install-skill.py" --host codex --dest "$dest"
+  [ "$status" -eq 0 ]
+  [ ! -e "$dest/validation" ]
+  [ ! -e "$dest/.github" ]
+  [ ! -e "$dest/tests/install.bats" ]
+  [ -f "$dest/examples/README.md" ]
+  run python3 "$PACKAGE/scripts/install-skill.py" --host codex --dest "$dest" --replace --backup-root "$CASE/skills/backups"
+  [ "$status" -eq 1 ]
 }

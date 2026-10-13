@@ -3,7 +3,8 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
-  check:
+  enforced-backend:
+    name: Enforced backend (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -34,3 +35,38 @@ jobs:
         run: bash scripts/training-ground.sh "$RUNNER_TEMP/autopilot-training"
       - name: Verify training evidence
         run: bash scripts/verify-evidence.sh "$RUNNER_TEMP/autopilot-training/repo/evidence"
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/p0-evidence
+            ${{ runner.temp }}/p0-patches
+            ${{ runner.temp }}/autopilot-training/repo/evidence
+            ${{ runner.temp }}/autopilot-training/repo/run.md
+  portable-linux:
+    name: Default Ubuntu (no namespace changes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install portable tools only
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats shellcheck jq
+          if test -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          fi
+      - run: make lint syntax
+      - name: Portable execution, missing backend and blocked backend regressions
+        run: bats --print-output-on-failure --show-output-of-passing-tests tests/compatibility.bats tests/install.bats | tee "$RUNNER_TEMP/portable.log"
+      - name: Upload portable results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-linux
+          path: ${{ runner.temp }}/portable.log

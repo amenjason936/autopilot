@@ -38,6 +38,18 @@ def inventory(root):
     return result
 
 
+RUNTIME_FILES = {
+    'SKILL.md', 'VERSION', 'README.md', 'REFERENCE.md', 'CHANGELOG.md',
+    'CONTRACT-TEMPLATE.md', 'RUN-RECORD-TEMPLATE.md', 'AUDITOR-BRIEF.md',
+    'CODEX-BRIEF.md', 'codex-findings.schema.json', 'agents/openai.yaml',
+}
+
+
+def runtime_member(path):
+    name = path.as_posix()
+    return (name in RUNTIME_FILES or name.startswith(('scripts/', 'examples/', 'tests/fixtures/training/')))
+
+
 def package_files(source):
     if (source / '.git').exists():
         def git(*args):
@@ -51,6 +63,7 @@ def package_files(source):
         files = [p.relative_to(source) for p in source.rglob('*')
                  if p.is_file() and not any(x in ('.git', '__pycache__', '.DS_Store') for x in p.relative_to(source).parts)
                  and p.name != 'INSTALLATION.json']
+    files = [p for p in files if runtime_member(p)]
     for relative in files:
         if relative.is_absolute() or '..' in relative.parts or (source / relative).is_symlink():
             raise ValueError('unsafe package member: ' + str(relative))
@@ -61,14 +74,14 @@ def package_files(source):
 
 
 def adapt_skill(text, host):
-    if host == 'codex':
-        return text
     if not text.startswith('---\n') or '\n---\n' not in text[4:]:
         raise ValueError('missing skill frontmatter')
     end = text.index('\n---\n', 4)
     lines = [line for line in text[4:end].splitlines()
              if not line.startswith('disable-model-invocation:')]
-    return '---\n' + '\n'.join(lines + ['disable-model-invocation: true']) + text[end:]
+    if host != 'codex':
+        lines.append('disable-model-invocation: true')
+    return '---\n' + '\n'.join(lines) + text[end:]
 
 
 def install(args):
@@ -88,11 +101,13 @@ def install(args):
     files, head = package_files(source)
     backup_root = pathlib.Path(args.backup_root).expanduser().absolute() if args.backup_root else dest.parent.parent / 'skill-backups'
     backup_root = backup_root.resolve()
+    if backup_root == dest.parent or dest.parent in backup_root.parents:
+        raise ValueError('backup and staging must be outside the host skills directory')
     if backup_root == dest or dest in backup_root.parents or backup_root == source or source in backup_root.parents:
         raise ValueError('backup location must be outside source and installed skill')
     receipt = {'host': args.host, 'source_commit': head, 'version': (source / 'VERSION').read_text().strip(),
                'destination': str(dest), 'file_count': len(files), 'replaces_existing': exists,
-               'frontmatter_adapter': args.host != 'codex'}
+               'frontmatter_adapter': 'remove-manual-frontmatter' if args.host == 'codex' else 'preserve-manual-frontmatter'}
     if args.dry_run:
         print(json.dumps({**receipt, 'backup_root': str(backup_root), 'dry_run': True}, indent=2))
         return
@@ -101,7 +116,7 @@ def install(args):
     backup.mkdir(parents=True, exist_ok=False)
     dest.parent.mkdir(parents=True, exist_ok=True)
     # Retain failed staging directories for inspection; never delete an old copy.
-    stage = pathlib.Path(tempfile.mkdtemp(prefix='.autopilot-stage-', dir=dest.parent))
+    stage = pathlib.Path(tempfile.mkdtemp(prefix='.autopilot-stage-', dir=backup))
     for relative in files:
         target = stage / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -116,7 +131,7 @@ def install(args):
     skill.write_text(adapt_skill(skill.read_text(), args.host))
     expected = inventory(stage)
     for name, checksum in source_hashes.items():
-        if name != 'SKILL.md' or args.host == 'codex':
+        if name != 'SKILL.md':
             if expected[name] != checksum:
                 raise ValueError('staged bytes differ: ' + name)
     receipt.update({'backup': str(backup), 'source_sha256': source_hashes, 'installed_sha256': expected})

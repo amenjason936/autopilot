@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — maintainer compatibility fixes
+
+- **Breaking migration:** existing contracts require a committed JSON policy;
+  gates use fresh worktrees without untracked dependencies. See REFERENCE.md for
+  writable dependency outputs, offline setup and existing-contract migration.
+- Let unrestricted env-clean run without a usable OS backend, with explicit
+  non-enforcement evidence. Strict restrictions still refuse with exit 77.
+- Run initial preflight/patch checks before creating durable partial evidence;
+  failed checks can retry their label without asserting safe side-effect replay.
+- Preserve manual-only canonical Claude frontmatter; remove that key only from
+  Codex installations. Restrict packages to runtime files and stage outside skills.
+- Bind explicit or legacy stage scope correctly; document snapshot-only fallback
+  review, Docs paths, invocation/resume entrypoints and landing record order.
+- Separate default Ubuntu compatibility CI from enforced-backend validation and
+  publish run results as CI artifacts.
+
 ## Unreleased — multi-host installation
 
 - Add a full-package installer for Codex, Claude Code, ZCode shared user skills
@@ -29,8 +45,8 @@
 - Add targeted rc.1 counterexample regressions, positive controls, a local Linux
   validation image, and compatible ShellCheck guards across host versions.
 
-Scores and actual platform coverage are recorded in VALIDATION.md after independent
-review; this version entry is not an external four-party approval.
+Historical scores and local platform coverage belong to the archived run record;
+current CI artifacts contain reproducible test evidence, not four-party approval.
 
 ## 0.2.0-rc.1 — 2026-10-13
 
@@ -44,7 +60,7 @@ review; this version entry is not an external four-party approval.
   interrupted partials, and reject existing review outputs instead of deleting them.
 - Generate diff-limited mutation candidates; introduce deterministic lite eligibility,
   a compact skill entrypoint, portable paths, and explicit evidence trust rules.
-- Add Bats/ShellCheck CI, a fixed training ground, a complete example and MIT license.
+- Add Bats/ShellCheck CI, a fixed training ground, and a complete example. Licensing is being discussed separately with the maintainer.
 
 Validation found that pinned review code previously used a live run-record snapshot:
 reviews now read the record at the pinned head. Mutant timeouts, signals and missing

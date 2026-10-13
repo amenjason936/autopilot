@@ -10,7 +10,8 @@ import pathlib
 import subprocess
 import sys
 
-# Targets were independently specified in validation/independent-review.md.
+# Runtime targets follow validation/independent-review.md. The output-data
+# mutation is an author-added script check, not the reviewer's model-level test.
 TARGETS = [
     ('p0-1-worktree', 'scripts/runner.sh', 'cd "$TREE$SUBDIR" || return 72', 'cd "$WORKDIR" || return 72', 'gate runs at pinned commit', 'tests/gate.bats'),
     ('p0-2-manifest', 'scripts/evidence.py', 'name not in known or digest(directory / name) != known[name]', 'name not in known', 'manifest detects tampering', 'tests/gate.bats'),
@@ -46,7 +47,9 @@ def main():
         command = f"bats --print-output-on-failure --filter '{test}' {suite}"
         status = subprocess.call(['bash', str(repo/'scripts/run-mutant.sh'), str(repo),
                                   str(evidence/(label+'.md')), label, str(target), command])
-        results.append(dict(label=label, target=name, selected_by='independent forward-test reviewer; author concretized patch',
+        selector = ('author-added script data control; model-level target unverified' if label == 'p0-6-output-data'
+                    else 'independent forward-test reviewer; author concretized patch')
+        results.append(dict(label=label, target=name, selected_by=selector,
                             head=head, exit=status, evidence=label+'.md'))
         if status != 0:
             break

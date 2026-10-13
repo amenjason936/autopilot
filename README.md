@@ -41,6 +41,6 @@ bash scripts/training-ground.sh /tmp/autopilot-demo-new
 bash scripts/verify-evidence.sh /tmp/autopilot-demo-new/repo/evidence
 ```
 
-Linux/macOS CI runs the same checks and the fixed training ground. A manifest binds evidence bytes to the reviewed commit; it is not an authenticated signature. `env-clean` sanitizes the environment and protects source/Git from writes; it still permits other host/network access. Outputs use `$AUTOPILOT_OUTPUT`, HOME/TMPDIR, or new `write_dirs` declared in policy. Strong-sandbox claims require passing live probes. See [VALIDATION.md](VALIDATION.md) for what has actually been run and what remains unverified.
+Linux/macOS CI runs the same checks and the fixed training ground. A manifest binds evidence bytes to the reviewed commit; it is not an authenticated signature. `env-clean` sanitizes the environment and protects source/Git, runner controls/helpers and evidence from command writes; it still permits other host/network access. Outputs use `$AUTOPILOT_OUTPUT`, HOME/TMPDIR, or new `write_dirs` declared in policy. Strong-sandbox claims require passing live probes. See [VALIDATION.md](VALIDATION.md) for what has actually been run and what remains unverified.
 
 [MIT License](LICENSE).

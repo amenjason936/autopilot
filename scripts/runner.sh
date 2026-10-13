@@ -160,14 +160,15 @@ runner_tree() {
     sandbox-exec)
       require sandbox-exec
       [ "$(uname -s)" = Darwin ] || die 69 'sandbox-exec requires macOS'
-      python3 "$SCRIPT_DIR/policy.py" profile "$TREE" "$RUN_HOME" "$RUN_TMP" "$GIT_COMMON" "$TOP" "$RUN_OUTPUT" <"$WORK/policy.json" >"$WORK/profile.sb" || die 70 'cannot build sandbox profile'
+      python3 "$SCRIPT_DIR/policy.py" profile "$TREE" "$RUN_HOME" "$RUN_TMP" "$GIT_COMMON" "$TOP" "$RUN_OUTPUT" "$WORK" "$SCRIPT_DIR" "$EVIDENCE_DIR" <"$WORK/policy.json" >"$WORK/profile.sb" || die 70 'cannot build sandbox profile'
       SANDBOX_ARGS=(sandbox-exec -f "$WORK/profile.sb")
       ;;
     bwrap)
       require bwrap
       SANDBOX_ARGS=(bwrap --die-with-parent --new-session --unshare-pid --unshare-user --unshare-ipc --unshare-uts --cap-drop ALL)
       if [ "$SANDBOX" = env-clean ]; then
-        SANDBOX_ARGS+=(--bind / / --ro-bind "$TOP" "$TOP")
+        SANDBOX_ARGS+=(--bind / / --ro-bind "$TOP" "$TOP" --ro-bind "$WORK" "$WORK"
+          --ro-bind "$SCRIPT_DIR" "$SCRIPT_DIR" --ro-bind "$EVIDENCE_DIR" "$EVIDENCE_DIR")
       else
         SANDBOX_ARGS+=(--unshare-net)
         while IFS= read -r path; do

@@ -3,6 +3,11 @@
 ## 0.2.0-rc.2 — 2026-10-13
 
 - Share selected policy identity across gates, review dispatch and resume (F1).
+- Protect runner policy/snapshot/helper/evidence files against commands rewriting
+  the authority used by subsequent phases (independent rc.2 review).
+- Accept valid unnumbered TAP; refuse skip-only TAP even without a plan.
+- Run self-test controls without unsupported nested macOS sandboxing, and mutate
+  the actual Linux bwrap cwd control.
 - Refuse failed Git reads, unexpected mutant source changes, and failed output
   filters instead of emitting successful evidence (F2–F4).
 - Protect source/Git with an OS boundary in every mode, including env-clean;

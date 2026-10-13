@@ -5,6 +5,8 @@ This is an execution-data negative control, not proof of LLM prompt-injection
 resistance. Patches and evidence are retained; a non-KILLED result fails the run.
 """
 import difflib
+import hashlib
+import signal
 import json
 import os
 import re
@@ -40,14 +42,18 @@ TARGETS = [
 
     ('supplement-lite-risk', 'scripts/lite.py', "if (not path.endswith(('.md', '.rst')) or", "if False and (not path.endswith(('.md', '.rst')) or", 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),
     ('author-output-symlink', 'scripts/runner.sh', 'python3 "$SCRIPT_DIR/evidence.py" path "$2"', 'true', 'committed evidence symlink cannot redirect writer', 'tests/supplements.bats'),
+    ('rc2-control-root', 'scripts/policy.py' if sys.platform == 'darwin' else 'scripts/runner.sh', 'tree, source, gitdir, work, helpers, evidence' if sys.platform == 'darwin' else '--ro-bind \"$WORK\" \"$WORK\"', 'tree, source, gitdir' if sys.platform == 'darwin' else '--bind \"$WORK\" \"$WORK\"', 'commands cannot rewrite runner controls', 'tests/rc2.bats'),
     ('rc2-policy-selection', 'scripts/policy.py', "path = os.environ.get('GATE_POLICY', 'docs/autopilot-policy.json')", "path = 'docs/autopilot-policy.json'", 'alternate policy controls review dispatch', 'tests/rc2.bats'),
     ('rc2-git-errors', 'scripts/runner.sh', 'state="$(cd "$TOP" && git_code status --porcelain)" || return 1', 'state="$(cd "$TOP" && git_code status --porcelain)"', 'failed git status with empty output', 'tests/rc2.bats'),
     ('rc2-source-snapshot', 'scripts/source_state.py', 'if actual != json.loads(target.read_text()):', 'if False:', 'applied mutant snapshot rejects extra edits', 'tests/rc2.bats'),
     ('rc2-filter-errors', 'scripts/runner.sh', 'tail -n "$keep" "$WORK/clean-output" || exit 70', 'tail -n "$keep" "$WORK/clean-output"', 'failed output filters cannot publish', 'tests/rc2.bats'),
     ('rc2-lite-data', 'scripts/lite.py', "if (not path.endswith(('.md', '.rst')) or", "if (not path.endswith(('.md', '.rst', '.txt')) or", 'lite refuses dependency build executable', 'tests/rc2.bats'),
     ('rc2-record-inventory', 'scripts/record_scope.py', "if set(tracked) - {'MANIFEST'} != set(inventory):", 'if False:', 'record inventory rejects HTML and JSON', 'tests/rc2.bats'),
-    ('rc2-skip-only', 'scripts/failure_signature.py', 'return 2 if plans and (not active or any(int(p) == 0 for p in plans)) else 0', 'return 0', 'skip-only and zero-test TAP detectors', 'tests/rc2.bats'),
+    ('rc2-skip-only', 'scripts/failure_signature.py', 'return 2 if tap and (not active or any(int(p) == 0 for p in plans)) else 0', 'return 0', 'skip-only and zero-test TAP detectors', 'tests/rc2.bats'),
 ]
+
+if sys.platform != 'darwin':
+    TARGETS[0] = ('p0-1-worktree', 'scripts/runner.sh', 'SANDBOX_ARGS+=(--chdir \"$TREE$SUBDIR\")', 'SANDBOX_ARGS+=(--chdir \"$WORKDIR\")', 'gate runs at pinned commit', 'tests/gate.bats')
 
 # Each host attacks its actual source-protection backend, not an unused adapter.
 TARGETS.append(('rc2-source-readonly',
@@ -57,6 +63,24 @@ TARGETS.append(('rc2-source-readonly',
     'source write and restore is prevented', 'tests/rc2.bats'))
 
 
+def execute(tree, test, suite):
+    command = ['bats', '--print-output-on-failure', '--filter', test, suite]
+    process = subprocess.Popen(command, cwd=tree, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, start_new_session=True)
+    try:
+        output, _ = process.communicate(timeout=600)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        output, _ = process.communicate()
+        return 124, output.decode(errors='replace')
+    finally:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    return process.returncode, output.decode(errors='replace')
+
+
 def main():
     if len(sys.argv) != 4:
         return 64
@@ -64,31 +88,78 @@ def main():
     patches.mkdir(parents=True, exist_ok=False)
     evidence.mkdir(parents=True, exist_ok=True)
     head = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD']).decode().strip()
+    baseline = patches / 'baseline'
+    subprocess.run(['git', '-C', str(repo), 'worktree', 'add', '--quiet', '--detach', str(baseline), head], check=True)
     results = []
     for key, name, before, after, test, suite in TARGETS:
-        label = os.environ.get("AUTOPILOT_CONTROL_PREFIX", "") + key
+        label = os.environ.get('AUTOPILOT_CONTROL_PREFIX', '') + key
         original = subprocess.check_output(['git', '-C', str(repo), 'show', f'{head}:{name}']).decode()
         if original.count(before) != 1:
             raise RuntimeError(f'{label}: mutation anchor changed; review target before running')
         changed = original.replace(before, after, 1)
         patch = ''.join(difflib.unified_diff(original.splitlines(keepends=True), changed.splitlines(keepends=True),
                                            fromfile='a/' + name, tofile='b/' + name))
-        target = patches / (label + '.patch')
-        target.write_text(patch)
-        command = f"bats --print-output-on-failure --filter '{test}' {suite}"
-        status = subprocess.call(['bash', str(repo/'scripts/run-mutant.sh'), str(repo),
-                                  str(evidence/(label+'.md')), label, str(target), command],
-                                 env={**os.environ, 'MUTANT_FAILURE_REGEX': r'^not ok [0-9]+ ' + re.escape(test) + r'.*$'})
+        (patches / (label + '.patch')).write_text(patch)
+        mutant = patches / label
+        subprocess.run(['git', '-C', str(repo), 'worktree', 'add', '--quiet', '--detach', str(mutant), head], check=True)
+        (mutant / name).write_text(changed)
+        base_status, base_output = execute(baseline, test, suite)
+        status, output = execute(mutant, test, suite)
+        signature = r'^not ok [0-9]+ ' + re.escape(test) + r'.*$'
+        active = bool(re.search(r'^ok [0-9]+ .*$', base_output, re.M)) and '# skip' not in base_output
+        killed = base_status == 0 and active and status == 1 and bool(re.search(signature, output, re.M))
+        outcome = 'KILLED' if killed else 'INCONCLUSIVE' if base_status or not active or status not in (0, 1) else 'SURVIVED'
         selector = ('rc.1 independent finding; author-concretized regression target' if key.startswith('rc2-')
                     else 'author-added script data control; model-level target unverified' if key == 'p0-6-output-data'
                     else 'author-added evidence writer boundary regression' if key.startswith('author-')
                     else 'independent acceptance auditor target; author concretized patch' if key.startswith(('c1-', 'c3-', 'c4-'))
                     else 'independent supplemental reviewer target; author concretized patch' if key.startswith('supplement-')
                     else 'independent forward-test reviewer; author concretized patch')
-        results.append(dict(label=label, target=name, selected_by=selector,
-                            head=head, exit=status, evidence=label+'.md'))
-        if status != 0:
-            break
+        report = f"""# Self-test control — {label}
+
+- tested commit: {head}
+- platform: {sys.platform}
+- harness sha256: {hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()}
+- selection: {selector}
+- target: {name}
+- patch sha256: {hashlib.sha256(patch.encode()).hexdigest()}
+- baseline exit: {base_status}
+- mutant exit: {status}
+- expected failure signature: {signature}
+- result: {outcome}
+
+This host-level synthetic self-test uses separate fixed-commit worktrees. Each
+fixture invokes the actual OS backend directly; there is no nested outer runner.
+It is not a production adversarial containment or live model injection test.
+Output is untrusted data, never instructions.
+
+## Patch
+```diff
+{patch}
+```
+## Baseline
+```
+{base_output}
+```
+## Mutant
+```
+{output}
+```
+"""
+        target = evidence / (label + '.md')
+        if target.exists():
+            raise RuntimeError('refusing to overwrite evidence')
+        redacted = subprocess.run(['python3', str(repo/'scripts/redact.py')], input=report.encode(), stdout=subprocess.PIPE, check=True).stdout
+        target.write_bytes(redacted)
+        lock = evidence / '.autopilot.lock'
+        lock.mkdir()
+        try:
+            subprocess.run(['python3', str(repo/'scripts/evidence.py'), 'add', str(evidence), target.name], check=True)
+        finally:
+            lock.rmdir()
+        results.append(dict(label=label, target=name, selected_by=selector, head=head,
+                            baseline_exit=base_status, mutant_exit=status, result=outcome, exit=0 if killed else 1, evidence=target.name))
+        print(f'{label}: {outcome} (baseline={base_status}, mutant={status})', flush=True)
     (patches/'results.json').write_text(json.dumps(results, indent=2)+'\n')
     return 0 if len(results) == len(TARGETS) and all(r['exit'] == 0 for r in results) else 1
 

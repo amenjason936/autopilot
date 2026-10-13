@@ -9,9 +9,10 @@ def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'activity':
         text = pathlib.Path(sys.argv[2]).read_text(encoding='utf-8')
         plans = re.findall(r'^1\.\.([0-9]+)(?:\s.*)?$', text, re.M)
-        cases = re.findall(r'^(?:not )?ok\s+[0-9]+[^\n]*$', text, re.M)
+        cases = re.findall(r'^(?:not )?ok(?:[ \t]+[^\n]*)?$', text, re.M)
         active = [row for row in cases if not re.search(r'#\s*skip\b', row, re.I)]
-        return 2 if plans and (not active or any(int(p) == 0 for p in plans)) else 0
+        tap = bool(plans or cases or re.search(r'^TAP version [0-9]+$', text, re.M))
+        return 2 if tap and (not active or any(int(p) == 0 for p in plans)) else 0
     mode, expression = sys.argv[1:3]
     pattern = re.compile(expression, re.M)
     if not expression or pattern.search(''):

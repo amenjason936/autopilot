@@ -6,7 +6,7 @@ is not standing authorization for future runs or external actions.
 
 ## Workspace and authorization
 
-Work in an isolated local clone from `ce24999`, then fast-forward the requested
+Work in an isolated local clone from rc.1 `23ebeed`, then fast-forward the requested
 clean repository to the verified commits. Preserve user changes if it has advanced.
 Local commits and a release-candidate tag are preparation; no remote publication.
 Generated test repositories, synthetic credential strings and temporary process
@@ -18,10 +18,14 @@ cleanup are part of validation. No real credential or database access is require
 |---|---|---|
 | `make check` | ShellCheck, Bash/Python syntax, Bats integration invariants | safe |
 
-`GATE_TIMEOUT=300` per command. The outer self-validation runner uses `env-clean`:
-this contract makes no claim that it confines the host. Test cases independently
-exercise real OS sandboxes with generated canaries; a failing/missing OS sandbox
-is a failure, never a skipped success. The JSON companion records this distinction.
+`GATE_TIMEOUT=600` per command. Package self-validation runs directly on the host
+or local Linux container: macOS forbids nested sandbox-exec. Each Bats fixture
+exercises the real OS backend with generated canaries; missing/failed support is
+a failure, never a skipped success. Negative controls run selected baseline and
+mutated fixtures in separate fixed-commit worktrees. This is synthetic package
+validation, not an adversarial outer containment certification. The product
+env-clean mode protects execution inputs and runner controls but retains other
+host/network access.
 
 ## Evidence and review
 

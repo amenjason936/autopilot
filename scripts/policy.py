@@ -95,14 +95,14 @@ def selected_policy(repo, head):
                 effective=normalize(supplied))
 
 
-def profile(policy, tree, home, temporary, gitdir, source, output):
+def profile(policy, tree, home, temporary, gitdir, source, output, work, helpers, evidence):
     quote = json.dumps
     writable = [home, temporary, output] + [str(pathlib.Path(tree)/p) for p in policy['write_dirs']]
     if policy['sandbox'] == 'env-clean':
         # Environment-only mode still pins execution inputs. It retains host
         # access outside the protected source/Git roots; it is not full isolation.
         lines = ['(version 1)', '(allow default)']
-        for root in (tree, source, gitdir):
+        for root in (tree, source, gitdir, work, helpers, evidence):
             exceptions = ''.join(f' (require-not (subpath {quote(p)}))' for p in writable if p.startswith(root + '/'))
             lines.append(f'(deny file-write* (require-all (subpath {quote(root)}){exceptions}))')
         return '\n'.join(lines) + '\n'
@@ -126,7 +126,7 @@ if __name__ == '__main__':
             print(json.dumps(normalize()))
         elif len(sys.argv) == 4 and sys.argv[1] == 'select':
             print(json.dumps(selected_policy(*sys.argv[2:])))
-        elif len(sys.argv) == 8 and sys.argv[1] == 'profile':
+        elif len(sys.argv) == 11 and sys.argv[1] == 'profile':
             print(profile(json.load(sys.stdin), *sys.argv[2:]), end='')
         else:
             sys.exit(64)

@@ -2,7 +2,22 @@
 load test_helper
 
 @test "evidence write failure cannot publish an incomplete success" {
-  run gate unwritable "chmod 400 '$EVID/unwritable.md.partial'"
+  # Inject writer I/O failure from the trusted test supervisor. Commands may
+  # no longer modify evidence permissions through the OS boundary.
+  (
+    for _ in $(seq 1 200); do
+      if [ -f "$CASE/ready" ]; then
+        chmod 400 "$EVID/unwritable.md.partial"
+        touch "$CASE/done"
+        exit
+      fi
+      sleep 0.05
+    done
+    exit 1
+  ) &
+  injector=$!
+  run gate unwritable "touch '$CASE/ready'; while [ ! -f '$CASE/done' ]; do sleep 0.05; done"
+  wait "$injector"
   [ "$status" -eq 70 ]
   [ ! -e "$EVID/unwritable.md" ]
   [ ! -e "$EVID/MANIFEST" ]

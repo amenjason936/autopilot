@@ -185,3 +185,27 @@ PY
   run gate alias 'if ln value "$HOME/source-alias"; then ! printf changed >"$HOME/source-alias"; fi; test "$(cat value)" = safe'
   [ "$status" -eq 0 ]
 }
+
+@test "commands cannot rewrite runner controls helpers or evidence" {
+  run gate controls 'for p in "$(dirname "$TMPDIR")/profile.sb" "$(dirname "$TMPDIR")/policy.json" "$(dirname "$TMPDIR")/tree-source.json"; do ! printf corrupted > "$p" || exit 1; done' "! printf corrupted > '$SKILL/scripts/source_state.py'" "! printf forged > '$EVID/controls.md.partial'" 'test "$(cat value)" = safe'
+  [ "$status" -eq 0 ]
+  run bash "$SKILL/scripts/verify-evidence.sh" "$EVID"
+  [ "$status" -eq 0 ]
+}
+
+@test "valid unnumbered TAP cases count as active tests" {
+  run gate unnumbered 'printf "TAP version 13\n1..1\nok - actual test\n"'
+  [ "$status" -eq 0 ]
+  run gate bare 'printf "1..1\nok\n"'
+  [ "$status" -eq 0 ]
+  run gate skipped 'printf "1..1\nok - unavailable # SKIP optional\n"'
+  [ "$status" -eq 1 ]
+}
+
+@test "skip-only TAP without a plan is inconclusive" {
+  run gate noplan 'printf "TAP version 13\nok 1 - unavailable # SKIP optional\n"'
+  [ "$status" -eq 1 ]
+  patch_value
+  run mutant noplanmutant 'if test "$(cat value)" = safe; then printf "1..1\nok - active\n"; else printf "TAP version 13\nok 1 - unavailable # SKIP optional\n"; fi'
+  [ "$status" -eq 2 ]
+}

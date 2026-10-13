@@ -52,7 +52,7 @@ TARGETS = [
     ('rc2-source-snapshot', 'scripts/source_state.py', 'if actual != json.loads(target.read_text()):', 'if False:', 'applied mutant snapshot rejects extra edits', 'tests/rc2.bats'),
     ('rc2-filter-errors', 'scripts/runner.sh', 'tail -n "$keep" "$WORK/clean-output" || exit 70', 'tail -n "$keep" "$WORK/clean-output"', 'failed output filters cannot publish', 'tests/rc2.bats'),
     ('rc2-lite-data', 'scripts/lite.py', "if (not path.endswith(('.md', '.rst')) or", "if (not path.endswith(('.md', '.rst', '.txt')) or", 'lite refuses dependency build executable', 'tests/rc2.bats'),
-    ('rc2-record-inventory', 'scripts/record_scope.py', "if set(tracked) - {'MANIFEST'} != set(inventory):", 'if False:', 'record inventory rejects HTML and JSON', 'tests/rc2.bats'),
+    ('rc2-record-inventory', 'scripts/record_scope.py', '        if unlisted:', '        if False:', 'record inventory rejects HTML and JSON', 'tests/rc2.bats'),
     ('maintainer-helper-integrity', 'scripts/runner.sh', '[ "$actual" = "$HELPER_DIGEST" ] || runner_integrity_abort', 'true', 'fallback rejects persistent helper tampering', 'tests/integrity.bats'),
     ('maintainer-control-integrity', 'scripts/runner.sh', '[ "$actual" = "$CONTROL_DIGEST" ] || runner_integrity_abort', 'true', 'fallback rejects a rewritten snapshot', 'tests/integrity.bats'),
     ('maintainer-post-command', 'scripts/runner.sh', 'COMMAND_STATUS=$?\n  runner_integrity_verify', 'COMMAND_STATUS=$?', 'fallback rejects persistent helper tampering', 'tests/integrity.bats'),

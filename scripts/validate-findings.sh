@@ -4,11 +4,14 @@
 # or extra keys, whole positive line numbers, confidence in 0..1, non-empty
 # file, and a verdict that agrees with the severities.
 #   validate-findings.sh <findings.json>
+#   validate-findings.sh <findings.json> <request.json> <repo> <base> <head> <record-relative-path> <scope>
+#     (the second form also checks the reviewer's output against its sealed
+#     request; resume uses it before reusing findings — see REFERENCE.md)
 # Exit status: 0 valid; 64 usage; 66 not found; 69 missing tool; 70 invalid
 # (or a jq too old to run the check — the message says which).
 set -uo pipefail
 
-{ [ $# -eq 1 ] || [ $# -eq 7 ]; } || { echo "usage: validate-findings.sh <findings.json>" >&2; exit 64; }
+{ [ $# -eq 1 ] || [ $# -eq 7 ]; } || { echo "usage: validate-findings.sh <findings.json> [<request.json> <repo> <base> <head> <record-relative-path> <scope>]" >&2; exit 64; }
 # shellcheck source=lib.sh
 . "$(cd "$(dirname "$0")" && pwd -P)/lib.sh"
 require jq

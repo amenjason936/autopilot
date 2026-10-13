@@ -2,7 +2,8 @@
 """Small mechanical candidates, never an assertion of semantic equivalence.
 
 Python tokens let us avoid modifying quoted strings or comments. Other source
-languages use a conservative line filter and are explicitly marked for review.
+languages mask string literals and line comments on the changed line, so only
+code outside them is mutated; candidates still need review.
 """
 import difflib
 import io
@@ -14,7 +15,55 @@ import sys
 import tokenize
 
 
-def variants(line, python):
+C_LIKE = ('.js', '.mjs', '.cjs', '.ts', '.tsx', '.c', '.cpp', '.go', '.rs')
+
+
+def code_mask(line, suffix):
+    """True for each character outside string literals and line comments."""
+    mask = [True] * len(line)
+    quotes = '"\'' + ('`' if suffix in ('.js', '.mjs', '.cjs', '.ts', '.tsx', '.go') else '')
+    comment = '#' if suffix == '.sh' else '//'
+    index, quote = 0, None
+    while index < len(line):
+        char = line[index]
+        if quote:
+            mask[index] = False
+            if char == '\\' and quote != "'" * (suffix == '.sh'):
+                if index + 1 < len(line):
+                    mask[index + 1] = False
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+        elif char in quotes:
+            quote = char
+            mask[index] = False
+        elif line.startswith(comment, index) and (comment != '#' or index == 0 or line[index - 1].isspace()):
+            for rest in range(index, len(line)):
+                mask[rest] = False
+            break
+        index += 1
+    if quote:  # a literal continues past this line: mutate nothing on it
+        return [False] * len(line)
+    return mask
+
+
+def condition_span(line, mask, start):
+    """(open, close) of the parenthesised condition after an `if` at start."""
+    open_at = line.find('(', start)
+    if open_at < 0 or not mask[open_at] or line[start + 2:open_at].strip():
+        return None
+    depth = 0
+    for index in range(open_at, len(line)):
+        if not mask[index]:
+            continue
+        depth += {'(': 1, ')': -1}.get(line[index], 0)
+        if depth == 0:
+            return open_at, index
+    return None
+
+
+def variants(line, python, suffix=''):
     if python:
         try:
             tokens = list(tokenize.generate_tokens(io.StringIO(line.lstrip()).readline))
@@ -24,10 +73,16 @@ def variants(line, python):
         regions = [(t.start[1] + offset, t.end[1] + offset, t.string) for t in tokens
                    if t.type in (tokenize.OP, tokenize.NUMBER) and t.start[0] == 1]
     else:
-        if line.lstrip().startswith(('#', '//', '*', '/*')) or any(c in line for c in ('"', "'", '`')):
+        if line.lstrip().startswith(('*', '/*')):
             return
-        regions = [(m.start(), m.end(), m[0]) for m in re.finditer(r'<=|>=|==|!=|<|>|\b\d+\b', line)]
-    flips = {'<': '>=', '>': '<=', '<=': '>', '>=': '<', '==': '!=', '!=': '=='}
+        mask = code_mask(line, suffix)
+        pattern = r'===|!==|<=|>=|==|!=|&&|\|\||<|>|\btrue\b|\bfalse\b|\b\d+\b'
+        regions = [(m.start(), m.end(), m[0]) for m in re.finditer(pattern, line)
+                   if all(mask[m.start():m.end()])
+                   # Arrows, shifts and generics are not comparisons.
+                   and not (m[0] in '<>' and (line[m.start() - 1:m.start()] in '=-<>' or line[m.end():m.end() + 1] in '=<>'))]
+    flips = {'<': '>=', '>': '<=', '<=': '>', '>=': '<', '==': '!=', '!=': '==',
+             '===': '!==', '!==': '===', '&&': '||', '||': '&&', 'true': 'false', 'false': 'true'}
     for start, end, token in regions:
         if token in flips:
             yield 'comparison', line[:start] + flips[token] + line[end:]
@@ -45,6 +100,16 @@ def variants(line, python):
         # without modifying any unchanged line. Only indented statements qualify.
         if re.match(r'\s+(?:if\s|return\s)', line):
             yield 'early-return', re.match(r'\s*', line)[0] + 'return None  # mechanical early exit\n'
+    elif suffix in C_LIKE:
+        guard = re.search(r'\bif\b', line)
+        if guard and mask[guard.start()]:
+            span = condition_span(line, mask, guard.start())
+            if span:
+                never = '0' if suffix in ('.c', '.cpp') else 'false'
+                yield 'disable-guard', line[:span[0] + 1] + never + line[span[1]:]
+        value = re.match(r'(\s+)return\s+[^;]*;\s*(?://.*)?\n?$', line)
+        if value and suffix in ('.js', '.mjs', '.cjs', '.ts', '.tsx') and all(mask[len(value[1]):len(value[1]) + 6]):
+            yield 'return-empty', value[1] + 'return;\n'
 
 
 def main():
@@ -61,7 +126,7 @@ def main():
         candidates = []
         for name in filter(None, files):
             file = name.decode('utf-8')
-            if not re.fullmatch(r'[A-Za-z0-9_./-]+', file) or pathlib.Path(file).suffix not in ('.py', '.sh', '.js', '.ts', '.tsx', '.c', '.cpp', '.go', '.rs'):
+            if not re.fullmatch(r'[A-Za-z0-9_./-]+', file) or pathlib.Path(file).suffix not in ('.py', '.sh') + C_LIKE:
                 continue
             mode = git('ls-tree', head, '--', file).split()[0]
             if mode not in (b'100644', b'100755'):
@@ -80,7 +145,7 @@ def main():
                 elif current is not None and line.startswith(' '):
                     current += 1
             for number in sorted(touched):
-                for kind, replacement in variants(lines[number - 1], file.endswith('.py')):
+                for kind, replacement in variants(lines[number - 1], file.endswith('.py'), pathlib.Path(file).suffix):
                     mutant = lines.copy()
                     mutant[number - 1] = replacement
                     # Syntactically broken Python is not a useful candidate.

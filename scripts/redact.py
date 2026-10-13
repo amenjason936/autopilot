@@ -5,6 +5,10 @@ import re
 import sys
 
 
+# A switch value (TOKENMETER_NO_KEYCHAIN=1, KEY_ROTATION=off) is never a secret.
+FLAG = r'(?!["\']?(?:0|1|true|false|yes|no|on|off)["\']?(?:[\s,;]|$))'
+
+
 def redact(data):
     text = data.decode('utf-8', errors='strict')
     text = re.sub(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))', '', text)
@@ -16,8 +20,8 @@ def redact(data):
         r'\b(?:AKIA|ASIA)[A-Z0-9]{16}\b',
         r'\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',
         r'(?<=://)[^\s/@:]+:[^\s/@]+@',
-        r'''(?im)\b[A-Z_][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*[=:]\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)''',
-        r'(?i)\b(?:key|token|secret|password)\s*[=:]\s*[^\s,;]+',
+        r'''(?im)\b[A-Z_][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*[=:]\s*''' + FLAG + r'''(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)''',
+        r'(?i)\b(?:key|token|secret|password)\s*[=:]\s*' + FLAG + r'[^\s,;]+',
         r'(?i)\b(?:authorization\s*:\s*bearer|bearer)\s+[^\s]+',
         r'(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----',
     ]

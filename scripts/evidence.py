@@ -4,7 +4,12 @@ import hashlib
 import os
 import pathlib
 import re
+import shutil
 import sys
+import time
+
+sys.dont_write_bytecode = True  # never write __pycache__ into scripts/ (issue #2)
+from redact import redact  # noqa: E402
 
 
 def digest(path):
@@ -38,7 +43,50 @@ def safe_path(path):
         raise ValueError('symlink evidence path refused')
 
 
+def register(directory, source, name):
+    """Redact SOURCE into DIRECTORY/NAME and append it to MANIFEST under the lock."""
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name) or '.partial' in name or name == 'MANIFEST':
+        raise ValueError('invalid evidence name')
+    if source.is_symlink() or not source.is_file():
+        raise ValueError('source must be a regular, non-symlink file')
+    lock = directory / '.autopilot.lock'
+    for _ in range(50):
+        try:
+            lock.mkdir()
+            break
+        except FileExistsError:
+            time.sleep(0.2)
+    else:
+        raise ValueError('evidence directory locked; inspect its owner before recovering a stale lock')
+    try:
+        (lock / 'owner').write_text(f'pid={os.getpid()}\nlabel={name}\nstarted=register\n')
+        target = directory / name
+        if target.exists() or target.is_symlink():
+            raise ValueError('evidence exists; choose a new name')
+        if name in (entries(directory) if (directory / 'MANIFEST').exists() else {}):
+            raise ValueError('manifest already contains this evidence')
+        staging = directory / (name + '.register-tmp')
+        staging.write_text(redact(source.read_bytes()), encoding='utf-8')
+        with staging.open('rb') as handle:
+            os.fsync(handle.fileno())
+        staging.rename(target)
+        with (directory / 'MANIFEST').open('a', encoding='utf-8') as handle:
+            handle.write(f'{digest(target)}  {name}\n')
+            handle.flush()
+            os.fsync(handle.fileno())
+    finally:
+        shutil.rmtree(lock, ignore_errors=True)
+    print(f'registered: {name}')
+
+
 def main():
+    if len(sys.argv) in (4, 5) and sys.argv[1] == 'register':
+        directory, source = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+        if not directory.is_dir():
+            return 66
+        safe_path(directory)
+        register(directory, source, sys.argv[4] if len(sys.argv) == 5 else source.name)
+        return 0
     if len(sys.argv) == 3 and sys.argv[1] == 'path':
         safe_path(pathlib.Path(sys.argv[2]))
         return 0
@@ -79,6 +127,9 @@ def main():
             raise ValueError('missing or empty manifest')
         wanted = sys.argv[3:] or list(known)
         for name in wanted:
+            if '/' in name:
+                print(f'name evidence files relative to the directory: {name!r} -> {pathlib.Path(name).name!r}', file=sys.stderr)
+                return 64
             if name not in known or digest(directory / name) != known[name]:
                 raise ValueError('missing evidence or SHA-256 mismatch')
         print(f'verified: {len(wanted)} evidence file(s)')

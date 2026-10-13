@@ -375,7 +375,7 @@ runner_phase() {
     {
       # Literal Markdown fences, not command substitution.
       # shellcheck disable=SC2016
-      printf '```sh\n%s\n```\n\nexit %s; timeout=%s\n\n```\n' "$command" "$status" "$TIMED_OUT"
+      printf '```sh\n%s\n```\n\nexit %s; timed out: %s\n\n```\n' "$command" "$status" "$([ "$TIMED_OUT" -eq 1 ] && echo "yes (after ${TIMEOUT}s)" || echo no)"
       # Redact the WHOLE output before selecting lines: multi-line secrets and
       # undecodable prefixes must not escape because they fell outside the tail.
       clean_output <"$OUTPUT" >"$WORK/clean-output" || exit 70

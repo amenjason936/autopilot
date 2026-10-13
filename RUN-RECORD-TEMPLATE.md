@@ -1,6 +1,6 @@
 # <run title>
 
-- status: planned <!-- planned → flying → landed | aborted -->
+- status: planned <!-- planned → flying → landed | aborted; landed closes the run even when its landing steps are parked -->
 - workspace: autopilot/<slug>
 - base: <full commit> <!-- the contract import commit, if the run brought the contract in -->
 - cut from: <full commit> <!-- the branch tip the workspace started from -->
@@ -8,7 +8,7 @@
 - contract: docs/autopilot.md <!-- add: confirmed by the human <date> -->
 - mode: full <!-- lite requires a passing check-lite result and a landing audit -->
 - policy: docs/autopilot-policy.json at the pinned commit
-- current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing <step>; while a review runs in the background: `<review>; <next step>` -->
+- current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> mutant <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing preparation | landing review r<k> | landing action <step> | landed — parked <P ids>; while a review runs in the background: `<review>; <next step>` -->
 
 ## Goal
 

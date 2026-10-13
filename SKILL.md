@@ -10,29 +10,29 @@ This run's request: $ARGUMENTS — if it begins with `resume`, go to §5; if it 
 
 Two files steer the run:
 
-- The **contract** — `docs/autopilot.md` in the project. Standing rules the human owns: the machine gate, what is pre-authorized, the red lines, where evidence goes, the review budget. You read it and never edit it; a change you want goes under *Proposed contract changes* in the run record.
-- The **run record** — one file per run, where the contract says. This run's frozen acceptance criteria, where the run is now (`current:`), and its ledger. It is what the human reads at landing and what a new session resumes from: update `current:` before every step that could be cut off.
+- The **contract** — `docs/autopilot.md` in the project. Standing rules the human owns: the machine gate, what is pre-authorized, the red lines, where evidence goes, the review budget. You read it and never edit it — the human's confirmation goes in the run record — and a change you want goes under *Proposed contract changes* there.
+- The **run record** — one file per run, where the contract says. This run's frozen acceptance criteria, where the run is now (`current:`), and its ledger. It is what the human reads at landing and what a new session resumes from: update `current:` before every step that could be cut off. While a review runs in the background and you keep working, `current:` holds both, separated by `;`.
 
 **Scripts** live in `~/.claude/skills/autopilot/scripts/`; each documents its exit codes in its header comment. Export `AUTOPILOT_RECORD=<run record>` for all of them.
 
-**Record paths and commits.** The run record and the evidence directory are *record paths*: they may stay uncommitted while you work, and the scripts ignore them when checking the tree is clean. Everything else is code. *Stage commits* hold code only, in the project's format; *record commits* hold record paths only, subject `autopilot: <what>`, made at the end of each stage and before each review. The **tested commit** is the latest commit that changed code; the scripts compute it and write it into every evidence file. Evidence is never overwritten: each run of a check gets its own label and file `<label>.md` (`gate-s2`, `gate-s2-rerun`, `mutant-c1`).
+**Record paths and commits.** The run record and the evidence directory are *record paths*: they may stay uncommitted while you work, and the scripts ignore them when checking the tree is clean. Everything else is code. *Stage commits* hold code only, in the project's format; *record commits* hold record paths only, subject `autopilot: <what>`, made at the end of each stage and before each review. The **tested commit** is the latest commit that changed code; the scripts compute it and write it into every evidence file. Evidence is never overwritten: each run of a check gets its own label and file `<label>.md` (`gate-s2`, `gate-s2-rerun`, `mutant-c1`). Evidence from any command — red-before output, a premise attempt, a browser pass — is recorded with `run-gate.sh` too, so it carries the command, exit status and tested commit (a red result is the point there); files a check produces, such as screenshots, sit beside it as `<label>-<name>.<ext>`.
 
-**Current evidence.** Evidence is current when no code changed between its tested commit and the run's tested commit (`git diff --stat <its> <run's>` outside record paths is empty). A mutant record stays current while the files it mutated are unchanged.
+**Current evidence.** Evidence is current when no code changed between its tested commit and the run's tested commit (`git diff --stat <its> <run's>` outside record paths is empty). A mutant record stays current while neither the files it mutated nor the check it ran (the test files its commands execute) have changed.
 
 ## 1. Takeoff — the only time you ask
 
-1. Enter the workspace — the contract's, or by default a new branch `autopilot/<slug>` from the main branch. The commit it starts from is the base.
-2. Read the contract. If the base has none but another branch does, start from that one as a changed contract. If there is none at all, draft one from [`CONTRACT-TEMPLATE.md`](CONTRACT-TEMPLATE.md) by inspecting how the project is built, tested, run and deployed. Gate commands that diff or lint the tree (`git diff --check`, linters) must exclude the record paths.
-3. Create the run record from [`RUN-RECORD-TEMPLATE.md`](RUN-RECORD-TEMPLATE.md): the stages, and the acceptance criteria, each paired with the evidence that will prove it. A criterion with a number in it gets its baseline measured now, by the check that will judge it.
+1. Enter the workspace — the contract's, or by default a new branch `autopilot/<slug>` from the main branch. The commit it starts from is the base, unless step 2 brings in the contract.
+2. Read the contract. If the workspace has none but another branch does, copy it in with the helper files its gate commands run, commit them as one code commit (`docs(autopilot): bring in the run contract`), and treat it as a changed contract. That commit is the run's **base**: the gate, reviews and evidence all start from it, and the record notes the commit it was cut from. If there is no contract at all, draft one from [`CONTRACT-TEMPLATE.md`](CONTRACT-TEMPLATE.md) by inspecting how the project is built, tested, run and deployed, and commit it the same way. Gate commands that diff or lint the tree (`git diff --check`, linters) must exclude the record paths.
+3. Create the run record from [`RUN-RECORD-TEMPLATE.md`](RUN-RECORD-TEMPLATE.md): the stages, and the acceptance criteria, each paired with the evidence that will prove it. A criterion with a number in it gets its baseline measured now — by the check that will judge it if it exists, otherwise by a probe recorded with `run-gate.sh`, and measured again by the check once it is written.
 4. Preflight, each result into the record's *Preflight* table:
-   - `git`, `perl`, `jq`, `codex` on PATH (no codex → the §3 fallback; not a blocker);
+   - `git`, `perl`, `jq`, `codex` on PATH (no codex → every review gate of the run uses the §3 fallback; not a blocker);
    - every preflight check in the contract;
    - the full machine gate at the base (label `gate-base`). A command already red there is a foreseen gate: the human decides whether the run fixes it first, drops it, or treats it as known-red;
-   - every safety premise in the contract, **attempted**: set up what it guards against, record that it held, and show the attempt would have caught a breach. A premise that fails is a red line;
+   - every safety premise in the contract, **attempted**: record the attempt with `run-gate.sh`, then show it would have caught a breach with `run-mutant.sh` and a patch that removes the guard (`KILLED`). A premise that fails is a red line;
    - walk the plan to its end, landing included, and list each gate you can foresee that lands on a red line or needs a credential, account or environment you lack.
 5. Put everything to the human in one batch: the contract if new or changed, the acceptance criteria, and the foreseen gates.
 
-Done when the human has confirmed. Then write their confirmation into the contract (`Status: in force since <date>`, the only contract edit a run makes), commit it and the record, and set `status: flying`. A new contract also goes under *Proposed contract changes*, to reach the main branch.
+Done when the human has confirmed. Then write their confirmation into the record's `contract:` line, set `status: flying`, and make the takeoff record commit. A new or copied-in contract also goes under *Proposed contract changes*, to reach the main branch; the human updates its `Status`.
 
 ## 2. Fly — one stage at a time
 
@@ -41,8 +41,8 @@ For each stage:
 1. Build it the way the project builds things: its plan file, its test-first rules, its commit format, its naming — no `autopilot` in product or test names. Commit it.
 2. **Machine gate**: `bash ~/.claude/skills/autopilot/scripts/run-gate.sh <workdir> <evidence-dir>/<label>.md <label> <command>...` with every command in the contract's machine gate and its `GATE_*` settings.
    Red means fix, commit, and rerun the whole gate under a new label. After **three** fix attempts on one failure, or once the failure lies outside the change (environment, tooling, a test shown flaky by a rerun on the unchanged commit), stop: mark the dependent criteria `failed` or `parked` with the red evidence, ledger it, and continue with stages that do not depend on it.
-3. **Review gate** on the stage diff (§3), unless every changed path is in the contract's *Docs paths*, or the contract's review budget defers stage reviews to landing.
-4. Update the record — criteria proven with their evidence, decisions, anything parked, `tested commit:` and `current:` — and make the stage's record commit.
+3. Update the record — criteria proven with their evidence, decisions, anything parked, `tested commit:` (the full SHA the script prints) — so a reviewer has the claims to check.
+4. **Review gate** on the stage diff (§3) — its record commit carries those claims — unless every changed path is in the contract's *Docs paths*, or the contract's review budget defers stage reviews to landing. Then ledger the triage, set `current:` to the next step, and make the stage's record commit.
 
 Done when every criterion the stage owns is `proven` by current evidence, `failed`, or `parked`.
 
@@ -53,7 +53,7 @@ When you reach for the human, classify the gate and settle it. Check the red-lin
 | The gate is about | Settle it by |
 |---|---|
 | A red line, or access you lack | **Park** it: ledger the exact action the human must take, what it unblocks, and how to verify it afterward. Build right up to the edge — script written, dry run done, isolated stand-in in place — then continue with the work that does not depend on it. |
-| Whether something works | **Run** it. Write the check — test, E2E, browser pass with screenshot and console log, timed query — commit it, and let the result decide. Then prove it can fail, once for each clause of the criterion: break the code, save `git diff` under `$(git rev-parse --git-common-dir)/autopilot/<label>.patch`, restore the code, and run `run-mutant.sh <workdir> <evidence-dir>/<label>.md <label> <patch> <command>...`. `KILLED` is the evidence; `SURVIVED` means the check proves nothing — fix it; `INCONCLUSIVE` means fix `MUTANT_SETUP` or the patch. |
+| Whether something works | **Run** it. Write the check — test, E2E, browser pass with screenshot and console log, timed query — commit it, and let the result decide. Then prove it can fail, once for each clause of the criterion: break the code, save `git diff -- <the files you broke>` under `$(git rev-parse --git-common-dir)/autopilot/<label>.patch`, check the mutated files the script prints are only those, restore the code, and run `run-mutant.sh <workdir> <evidence-dir>/<label>.md <label> <patch> <command>...`. `KILLED` is the evidence; `SURVIVED` means the check proves nothing — fix it; `INCONCLUSIVE` means fix `MUTANT_SETUP` or the patch. |
 | Whether something cannot happen | **Attempt** it. Set up the conditions under which it would happen — the hostile environment, the forbidden input — and record that it did not. |
 | Which way to go, or whether a result is credible | Decide, and **ledger** it: what you chose, what you rejected, what would make you wrong. If undoing it later would cost more than one stage, convene the review gate on the decision before building on it. |
 | A frozen criterion is wrong or cannot be met | Never rewrite it. Add a *Criterion errata* row — what is wrong, the evidence, what you will prove instead — and judge the criterion against its original words. The human rules on the erratum at landing. |
@@ -66,7 +66,7 @@ Set `current:` to the review, make the record commit, and pin the head to HEAD �
 
 - **Codex adversary** — a different model, hunting what breaks. Run in the background:
   `CODEX_REVIEW_HEAD=<head> bash ~/.claude/skills/autopilot/scripts/codex-review.sh <repo> <base> <run-record> <out-file> "scope: <stage n | landing>"` with the contract's `CODEX_REVIEW_*` settings.
-  Any other non-zero exit than 64–66 (fix the call) — no codex, a failure, a timeout, invalid findings — means fall back: run it again with `--prompt-only` as the first argument, give that output as the whole prompt to a fresh `general-purpose` agent, and check the file it writes with `validate-findings.sh`. Ledger under *Not verified* that the adversary was the same model family.
+  If preflight found no codex, go straight to the fallback. Any other non-zero exit than 64–66 (fix the call) — a failure, a timeout, invalid findings — means fall back too: run it again with `--prompt-only` as the first argument, give that output as the whole prompt to a fresh `general-purpose` agent, and check the file it writes with `validate-findings.sh`. Ledger under *Not verified* that the adversary was the same model family.
 - **Acceptance auditor** — a fresh context, checking each claim against its evidence. Dispatch a `general-purpose` agent whose prompt is the inputs above, an output file beside the findings files, and the instruction to read `~/.claude/skills/autopilot/AUDITOR-BRIEF.md` as its brief.
 
 Triage every finding from both. A reviewer that returns none gets one row with status `approve`, so every review is on record.
@@ -85,10 +85,9 @@ Before each step, set `current: landing <step>`.
 
 1. Bring every criterion's evidence current: rerun, under new labels, each check whose evidence is not current. A check the contract marks `rerun: no` is ledgered under *Not verified* instead.
 2. Run the machine gate on the tested commit (label `gate-landing`). Red → fix within the §2 retry limit, then rerun as `gate-landing-2`, ….
-3. Convene the review gate on the whole run (scope `landing`), base to HEAD, and settle its findings. If that changed code, repeat steps 1–2 for what changed, and round two reviews the fix diff only — within the retry limit and the review budget; when either runs out, mark the affected criteria `failed`.
-4. Complete every section of the run record. Nothing is `open`; *Not verified* says `none` if so.
-5. Write the **acceptance walk**: the shortest sequence of things for the human to see with their own eyes, riskiest first, each with where to go, what to do and what should appear.
-6. Set `status: landed` (or `aborted`, with why) and make the final record commit. Then carry out any landing steps the contract pre-authorizes, in its order — before each, check it has not already taken effect (merged? tag exists?). Report, including the outcome of each landing step.
+3. Complete every section of the run record but `status`: nothing is `open`, *Parked* and *Proposed contract changes* are filled, *Not verified* says `none` if so, and the **acceptance walk** is written — the shortest sequence of things for the human to see with their own eyes, riskiest first, each with where to go, what to do and what should appear.
+4. Convene the review gate on the whole run (scope `landing`), base to HEAD, and settle its findings. If that changed code, repeat steps 1–3 for what changed, and round two reviews the fix diff only — within the retry limit and the review budget; when either runs out, mark the affected criteria `failed`.
+5. Set `status: landed` (or `aborted`, with why) and make the final record commit. Then carry out any landing steps the contract pre-authorizes, in its order — before each, check it has not already taken effect (merged? tag exists?). Report, including the outcome of each landing step.
 
 Done when the record is committed, nothing in it is `open`, and it alone lets the human accept or reject the run without reading the conversation.
 
@@ -101,7 +100,7 @@ A run cut off mid-flight is resumed from its record, never from memory:
    - `takeoff` → restart §1; nothing was confirmed.
    - `build` → finish the stage and commit.
    - `gate <label>` → `<label>.md` is that gate's result; only a `.partial` means it was cut off — rerun it (the script replaces the partial).
-   - `review` (or `landing 3`) → triage a findings file named in `current:` that validates; rerun any other reviewer on the same pinned head. With no head in `current:` yet, start the review over.
+   - `review` (or `landing 4`) → triage a findings file named in `current:` that validates; rerun any other reviewer on the same pinned head. With no head in `current:` yet, start the review over.
    - `record` → bring the record up to date from the git log and evidence files, then make the record commit.
    - `landing <step>` → resume there; a pre-authorized step is repeated only if it has not already taken effect.
 3. Ledger the resume as a decision: where the run was, and what you redid.

@@ -147,5 +147,5 @@ fi
 printf -- '- finished: %s\n- result: %s\n' "$(date -u +%FT%TZ)" \
   "$([ "$FAILED" -eq 0 ] && echo passed || echo FAILED)" >>"$PARTIAL"
 mv "$PARTIAL" "$EVIDENCE" || die 70 "cannot rename $PARTIAL"
-echo "evidence: $EVIDENCE (tested commit ${TESTED:0:12})"
+echo "evidence: $EVIDENCE (tested commit $TESTED)"
 exit "$FAILED"

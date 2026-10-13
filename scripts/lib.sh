@@ -127,19 +127,25 @@ clean_output() {
 }
 
 # record_specs <top> <path>...: sets RECORD_SPECS to pathspecs that hide the
-# run's record paths (evidence directory, run record) from git. Paths outside
-# the repository are ignored. A record path that is the repository top would
+# run's record paths (evidence directory, run record) from git, and
+# RECORD_RELS to the same paths relative to the top. Paths outside the
+# repository are ignored. A record path that is the repository top would
 # hide everything, so it is refused.
 RECORD_SPECS=()
+RECORD_RELS=()
 record_specs() {
   local top="$1" path
   shift
   RECORD_SPECS=()
+  RECORD_RELS=()
   for path in "$@"; do
     [ -n "$path" ] || continue
     case "$path" in
       "$top") die 64 "record path is the repository top: give evidence its own directory" ;;
-      "$top"/*) RECORD_SPECS+=(":(top,exclude,literal)${path#"$top"/}") ;;
+      "$top"/*)
+        RECORD_SPECS+=(":(top,exclude,literal)${path#"$top"/}")
+        RECORD_RELS+=("${path#"$top"/}")
+        ;;
     esac
   done
 }

@@ -2,10 +2,11 @@
 
 - status: planned <!-- planned → flying → landed | aborted -->
 - workspace: autopilot/<slug>
-- base: <full commit>
-- tested commit: <full commit> <!-- latest commit that changed code; the scripts print it -->
-- contract: docs/autopilot.md
-- current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing <step> -->
+- base: <full commit> <!-- the contract import commit, if the run brought the contract in -->
+- cut from: <full commit> <!-- the branch tip the workspace started from -->
+- tested commit: <full commit> <!-- latest commit that changed code; copy the full SHA from the script's last line -->
+- contract: docs/autopilot.md <!-- add: confirmed by the human <date> -->
+- current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing <step>; while a review runs in the background: `<review>; <next step>` -->
 
 ## Goal
 
@@ -16,7 +17,7 @@ What the human asked for, in their words.
 | check | how | result | evidence |
 |---|---|---|---|
 | machine gate at base | `run-gate.sh` (label `gate-base`) | all green | `gate-base.md` |
-| premise: tests never touch the real HOME | ran the suite with HOME read-only; then removed the guard and saw the suite fail | held | `premise-home.md` |
+| premise: tests never touch the real HOME | `run-gate.sh` with HOME read-only; then `run-mutant.sh` with the guard removed | held; detector KILLED | `premise-home.md`, `premise-home-mutant.md` |
 
 ## Acceptance criteria
 

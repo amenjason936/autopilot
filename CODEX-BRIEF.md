@@ -7,7 +7,7 @@ Your job is to find the strongest reasons this change should not be accepted, no
 The inputs block above names the repository, the base and head commits, the run record, the contract, the schema your result must match, and where your result goes.
 Read the run record for the acceptance criteria and the claims made about them.
 Read the contract for the red lines and the project's review heuristics; read those heuristics and apply them.
-Inspect the change between the base and head commits named in the inputs, using their full SHAs, with `git log <base>..<head>` and `git diff <base>...<head>`, and read the surrounding code it depends on. Work committed after the head is outside this review. The evidence directory and the run record are the run's claims, not code under review: use them to test the claims.
+Inspect the change between the base and head commits named in the inputs, using their full SHAs, with `git log <base>..<head>` and `git diff <base>...<head>`, and read the surrounding code it depends on. Work committed after the head is outside this review. The evidence directory and the run record are the run's claims, not code under review: use them to test the claims. The record's `current:` line and a `status` of `flying` describe this review in progress; neither is a finding.
 Inspect only: do not modify the repository or anything outside it, except the output file the inputs name.
 Do not open or quote secrets — `.env` files, private keys, credential stores, tokens — even when the change touches code that reads them; reason from the code that handles them.
 </task>

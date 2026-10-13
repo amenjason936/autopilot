@@ -69,16 +69,20 @@ inputs() {
   cat "$SKILL_DIR/CODEX-BRIEF.md"
 }
 
-if [ "$PROMPT_ONLY" -eq 1 ]; then
-  inputs "$REPO (its working tree may be newer than the head: read the head with \`git show $HEAD_SHA:<path>\`, or check it out in a worktree of your own)" \
-    "$(cd "$(dirname "$RECORD")" && pwd -P)/$(basename "$RECORD")" \
-    "write the JSON to $OUT, then run: bash $SKILL_DIR/scripts/validate-findings.sh $OUT"
-  exit 0
-fi
-
 LOG="${OUT%.json}.log"
 # Never let a previous round's findings pass for this one.
 rm -f "$OUT" "$LOG" "$OUT.invalid"
+
+if [ "$PROMPT_ONLY" -eq 1 ]; then
+  # Snapshot the run record beside the output, as codex mode does: the live
+  # one keeps changing during the review.
+  SNAPSHOT="${OUT%.json}.run-record.md"
+  cp "$RECORD" "$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
+  inputs "$REPO (its working tree may be newer than the head: read the head with \`git show $HEAD_SHA:<path>\`, or check it out in a worktree of your own)" \
+    "$SNAPSHOT (snapshot taken when this review started)" \
+    "write the JSON to $OUT, then run: bash $SKILL_DIR/scripts/validate-findings.sh $OUT"
+  exit 0
+fi
 
 WORK="$(make_temp_dir codex)"
 TREE="$WORK/tree"

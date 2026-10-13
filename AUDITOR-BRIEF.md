@@ -4,13 +4,13 @@ Your job is to find every claim the evidence does not carry, not to judge the de
 </role>
 
 <inputs>
-Your prompt names the repository, the base and head commits, the run record, the contract and the scope (`stage <n>` or `landing`). Read everything as of the head: `git show <head>:<path>`, or a worktree of your own at the head. The evidence directory and the run record are committed at the head; the record's `current:` line names this review in progress and is not a finding. Work committed after the head is outside this review. Do not modify anything.
+Your prompt names the repository, the base and head commits, the run record, the contract and the scope (`stage <n>` or `landing`). Read everything as of the head: `git show <head>:<path>`, or a worktree of your own at the head. The evidence directory and the run record are committed at the head; the record's `current:` line names this review in progress, and at landing `status` stays `flying` until the review is settled — neither is a finding. Work committed after the head is outside this review. Do not modify anything.
 </inputs>
 
 <terms>
 - Record paths: the evidence directory and the run record. Everything else is code.
 - Each evidence file names its tested commit: the latest commit that changed code when it ran. Commits that touch only record paths do not change it.
-- Evidence is current when no code changed between its tested commit and the head's: `git diff --stat <its tested commit> <head> -- . ':(exclude)<evidence dir>' ':(exclude)<run record>'` is empty. A mutant record stays current while the files it lists as mutated are unchanged.
+- Evidence is current when no code changed between its tested commit and the head's: `git diff --stat <its tested commit> <head> -- . ':(exclude)<evidence dir>' ':(exclude)<run record>'` is empty. A mutant record stays current while neither the files it lists as mutated nor the check it ran (the test files its commands execute) have changed.
 </terms>
 
 <task>

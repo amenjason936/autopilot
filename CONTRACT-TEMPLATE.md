@@ -1,6 +1,6 @@
 # Autopilot contract — <project>
 
-Standing rules for unattended runs (the `autopilot` skill). The human owns this file: a run reads it and never edits it — except to write the human's confirmation into `Status` — and proposes changes in its run record.
+Standing rules for unattended runs (the `autopilot` skill). The human owns this file: a run reads it and never edits it; it records the human's confirmation in its run record and proposes changes there.
 
 Status: proposed <!-- becomes "in force since <date>" once the human confirms -->
 
@@ -19,7 +19,7 @@ Checks that must pass before takeoff. One row each: the command, and the result 
 
 ## Safety premises
 
-What keeps a run — and its machine gate — off the red lines: a temporary HOME, an isolated data directory, a memory cap, offline mode, a sandbox account. Each is attempted at preflight, not assumed.
+What keeps a run — and its machine gate — off the red lines: a temporary HOME, an isolated data directory, a memory cap, offline mode, a sandbox account. Each is attempted at preflight, not assumed: a command that shows it holds, and a guard a mutant can remove to show the command would catch a breach.
 
 | premise | how a run attempts it | holds when |
 |---|---|---|
@@ -55,7 +55,7 @@ What a run parks. For each, the action and what the run prepares instead.
 
 ## Evidence
 
-The evidence directory: a directory of its own, holding nothing but evidence (the scripts treat it, with the run record, as record paths that may stay uncommitted). Each file is `<label>.md`, one label per run of a check, never overwritten; each records its tested commit. Mutant patches stay outside the work tree (under `.git/autopilot/`); the evidence embeds them. Check the directory is not caught by `.gitignore`, a lint gate (trailing whitespace, file types), or a submodule.
+The evidence directory: a directory of its own, holding nothing but evidence (the scripts treat it, with the run record, as record paths that may stay uncommitted). Each file is `<label>.md` (`gate-s2`, `gate-s2-rerun`, `mutant-c1`, `gate-landing`), one label per run of a check, never overwritten; each records its tested commit. Files a check produces (screenshots, traces) sit beside it as `<label>-<name>.<ext>`. Mutant patches stay outside the work tree (under `.git/autopilot/`); the evidence embeds them. Check the directory is not caught by `.gitignore`, a lint gate (trailing whitespace, file types), or a submodule.
 
 ## Review
 

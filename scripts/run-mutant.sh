@@ -8,19 +8,21 @@
 # applied and the mutant is killed when at least one command fails.
 # Code must be committed, as for run-gate.sh: the check under test has to be
 # in the worktree. Record paths (the evidence directory, $AUTOPILOT_RECORD)
-# may be dirty. Make the patch with `git diff > <patch>` after breaking the
-# code, then restore it with `git checkout -- <files>`. Keep the patch outside
-# the work tree (e.g. "$(git rev-parse --git-common-dir)/autopilot/"): the
-# evidence embeds it, and a raw patch fails whitespace checks.
+# may be dirty, and a patch that touches them is refused. Make the patch with
+# `git diff -- <files> > <patch>` after breaking the code, check the mutated
+# files this prints are the ones you meant, then restore them with
+# `git checkout -- <files>`. Keep the patch outside the work tree (e.g.
+# "$(git rev-parse --git-common-dir)/autopilot/"): the evidence embeds it,
+# and a raw patch fails whitespace checks.
 # Env: AUTOPILOT_RECORD run record path; MUTANT_SETUP shell string run in the
 # worktree before anything else (install or link dependencies the worktree
 # lacks); GATE_TIMEOUT seconds per command (default 3600); GATE_TAIL_LINES
 # (default 40).
 # Exit status: 0 mutant killed; 1 mutant survived — the check proves nothing;
 # 2 inconclusive (setup failed, baseline red, or the patch removed the
-# workdir); 64 usage or bad setting; 65 uncommitted code or the patch does not
-# apply; 66 not found; 69 missing tool; 70 internal; 73 evidence exists;
-# 129/130/143 interrupted.
+# workdir); 64 usage, bad setting, or the patch touches a record path; 65
+# uncommitted code or the patch does not apply; 66 not found; 69 missing
+# tool; 70 internal; 73 evidence exists; 129/130/143 interrupted.
 set -uo pipefail
 
 [ $# -ge 5 ] || {
@@ -77,6 +79,18 @@ cleanup() {
 trap cleanup EXIT
 git -C "$TOP" worktree add --quiet --detach "$TREE" "$COMMIT" || die 70 "cannot create a worktree at $COMMIT"
 git -C "$TREE" apply --check "$PATCH" 2>"$OUTPUT" || die 65 "patch does not apply at $COMMIT: $(cat "$OUTPUT")"
+MUTATED="$(git -C "$TREE" apply --numstat "$PATCH" | cut -f3)"
+# A patch made with a bare `git diff` also carries the dirty run record.
+while IFS= read -r FILE; do
+  for REL in ${RECORD_RELS[@]+"${RECORD_RELS[@]}"}; do
+    case "$FILE" in
+      "$REL" | "$REL"/*) die 64 "the patch touches a record path ($FILE): make it with \`git diff -- <the files you broke>\`" ;;
+    esac
+  done
+done <<EOF
+$MUTATED
+EOF
+echo "mutating: $(printf '%s\n' "$MUTATED" | paste -sd ' ' -)" >&2
 
 {
   printf '# Mutant — %s\n\n' "$LABEL"
@@ -84,7 +98,7 @@ git -C "$TREE" apply --check "$PATCH" 2>"$OUTPUT" || die 65 "patch does not appl
   [ "$COMMIT" = "$TESTED" ] || printf -- '- HEAD: %s (record commits only since the tested commit)\n' "$COMMIT"
   printf -- '- recorded by: %s (sha256 %s)\n' "$SCRIPT" "$(sha256_of "$SCRIPT")"
   printf -- '- started: %s\n' "$(date -u +%FT%TZ)"
-  printf -- '- mutated files: %s\n' "$(git -C "$TREE" apply --numstat "$PATCH" | cut -f3 | paste -sd ' ' -)"
+  printf -- '- mutated files: %s\n' "$(printf '%s\n' "$MUTATED" | paste -sd ' ' -)"
   printf -- '- patch: %s (sha256 %s; shown with trailing whitespace stripped)\n\n```diff\n' "$PATCH" "$(sha256_of "$PATCH")"
   clean_output <"$PATCH"
   printf '```\n\n'

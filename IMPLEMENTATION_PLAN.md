@@ -1,41 +1,13 @@
-# Autopilot upgrade implementation plan
+# v0.2.0-rc.2 repair and independent re-evaluation
 
-Source: `../optimization-plan.md`; baseline `ce24999`. Scope is this skill repository.
-No global installation, remote publication, production credentials, or database changes.
+Base: v0.2.0-rc.1 / 23ebeedcd41ebcc2682a077549e598e64c9093ce.
+Source requirements: optimization-plan.md and rc1-independent-review-20261013/REVIEW.md.
+Authorized scope: implement F1–F7/G1, regressions, local rc.2 release candidate and independent re-score. No global installation or remote publication.
 
-## Stages
+1. Freeze requirements and inspect existing behavior — complete.
+2. Repair policy identity, execution/source boundaries, evidence and admission — complete. 66 tests pass on macOS and real Ubuntu/bubblewrap.
+3. Run regression/negative controls and platform validation; freeze candidate — in progress. 32 mutation anchors checked; final committed gates and controls next.
+4. Fresh independent review, resolve confirmed findings and re-score — pending.
+5. Archive evidence, tag v0.2.0-rc.2 and deliver to original repo — pending.
 
-1. **Safety and evidence — complete.** Pin both runners to disposable worktrees;
-   add fail-closed redaction, environment allowlists, sandbox policy and probes,
-   dry runs, directory locks, partial preservation, and SHA-256 manifests.
-2. **Independent checks — complete.** Diff-limited mutation suggestions and a
-   deterministic lite eligibility check; update both review briefs.
-3. **Packaging and documentation — complete.** Short entrypoint, reference,
-   contract/record templates, portable installation, complete example, MIT license,
-   version and changelog.
-4. **Validation tooling and audit fixes — implemented.** Bats, ShellCheck, Linux/macOS CI, fixed
-   training ground, P0 regression mutations, independent forward testing, and a
-   candid acceptance report. Sync tested changes into the requested repository.
-
-## Acceptance and limits
-
-- Test observable behavior, including failure and interrupted paths, rather than
-  claiming safety from documentation or a successful exit alone.
-- A committed manifest detects alteration relative to the reviewed commit; it is
-  not an authenticated signature against a writer able to replace that commit.
-- `env-clean` is environment hygiene only. A contract's path/network restrictions
-  require a supported OS sandbox and successful positive/negative probes.
-- Four external reviewers' scores and remote CI results must remain unverified
-  until those reviewers/CI actually run. Do not invent the plan's 9/10 rating.
-- Temporary test repositories can have fixture commits; final code commits/tags
-  require the prescribed checks to pass. Existing user files are not deleted.
-
-## Results
-
-54 Bats tests and ShellCheck pass on macOS. Supplementary review added failure
-signatures, fail-closed evidence writes, request identity, safe recovery, committed
-record-path admission and risk-based lite restrictions. Final controls, acceptance
-audit and repository delivery are tracked in VALIDATION.md. The committed validation record contains
-the self-run machine gate, training-ground archive, P0 negative controls and
-independent-review fixes. Linux execution and external four-party scores require
-the configured CI/external reviewers; those are not counted as passed.
+Do not invent a 9/10 rating or four-party approval. Real platform/model results must be distinguished from simulations and unavailable environments. Preserve original user files and rc.1 tag.

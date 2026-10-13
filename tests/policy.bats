@@ -26,13 +26,15 @@ load test_helper
 
 @test "fake sandbox allowing access fails preflight before command" {
   mkdir "$CASE/bin"
-  if [ "$(uname -s)" = Darwin ]; then
-    printf '#!/bin/bash\nshift 2\nexec "$@"\n' >"$CASE/bin/sandbox-exec"
-    export GATE_SANDBOX=sandbox-exec
-    chmod +x "$CASE/bin/sandbox-exec"
-  else
-    skip 'fake sandbox profile targets macOS; real bwrap exercised below'
-  fi
+  # Both adapters are deliberately permissive; neither may pass the probes.
+  for backend in sandbox-exec bwrap; do
+    cat >"$CASE/bin/$backend" <<'STUB'
+#!/bin/bash
+while [ "$#" -gt 0 ] && [ "$1" != /bin/bash ]; do shift; done
+exec "$@"
+STUB
+    chmod +x "$CASE/bin/$backend"
+  done
   export PATH="$CASE/bin:$PATH"
   run gate fake "touch '$CASE/executed'"
   [ "$status" -eq 77 ]

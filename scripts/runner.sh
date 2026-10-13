@@ -49,7 +49,7 @@ runner_init() {
   EVIDENCE="$(resolve_path "$2")" || die 64 'invalid evidence path'
   LABEL="$3"
   [[ "$LABEL" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die 64 'invalid label'
-  [ "${#LABEL}" -le 100 ] && [[ "$LABEL" != *'.partial'* ]] || die 64 'invalid label'
+  if ! { [ "${#LABEL}" -le 100 ] && [[ "$LABEL" != *'.partial'* ]]; }; then die 64 'invalid label'; fi
   [ "$(basename "$EVIDENCE")" = "$LABEL.md" ] || die 64 'evidence filename must be <label>.md'
   EVIDENCE_DIR="$(dirname "$EVIDENCE")"
   RECORD=
@@ -73,16 +73,9 @@ runner_init() {
     [ "$?" -le 1 ] || die 64 'invalid GATE_KEEP_REGEX'
   fi
   # Read the policy from the pinned commit, never a concurrently edited file.
-  POLICY_PATH="${GATE_POLICY:-docs/autopilot-policy.json}"
-  case "$POLICY_PATH" in /*|*..*|*[!A-Za-z0-9_./-]*) die 64 'GATE_POLICY must be a repository-relative path' ;; esac
-  if git cat-file -e "$COMMIT:$POLICY_PATH" 2>/dev/null; then
-    RAW_POLICY="$(git show "$COMMIT:$POLICY_PATH")" || die 64 'cannot read policy'
-  elif [ -n "${GATE_POLICY:-}" ] || git cat-file -e "$COMMIT:docs/autopilot.md" 2>/dev/null; then
-    die 64 'a contract requires a committed docs/autopilot-policy.json (or GATE_POLICY)'
-  else
-    RAW_POLICY='{}'
-  fi
-  POLICY="$(printf '%s' "$RAW_POLICY" | python3 "$SCRIPT_DIR/policy.py")" || exit 64
+  POLICY_SELECTION="$(python3 "$SCRIPT_DIR/policy.py" select "$TOP" "$COMMIT")" || die 64 'invalid or missing committed execution policy'
+  POLICY_PATH="$(printf '%s' "$POLICY_SELECTION" | jq -r .path)" || die 64 'invalid policy path'
+  POLICY="$(printf '%s' "$POLICY_SELECTION" | jq -c .effective)" || die 64 'invalid policy'
   printf '%s' "$POLICY" | python3 "$SCRIPT_DIR/record_scope.py" "$TOP" "$COMMIT" "$EVIDENCE_DIR" "$RECORD" || die 64 'record paths must match dedicated paths in the committed policy'
   record_specs "$TOP" "$EVIDENCE_DIR" "$RECORD"
   TESTED="$(tested_commit "$TOP")" || die 70 'cannot find tested commit'
@@ -92,7 +85,7 @@ runner_init() {
   ENV_NAMES=()
   while IFS= read -r name; do ENV_NAMES+=("$name"); done < <(printf '%s' "$POLICY" | jq -r '.env[]')
   if [ "$LITE" -eq 1 ]; then
-    [ -n "${AUTOPILOT_BASE:-}" ] && [ -n "${AUTOPILOT_RUN_CONFIG:-}" ] || die 64 'lite requires AUTOPILOT_BASE and AUTOPILOT_RUN_CONFIG'
+    if ! { [ -n "${AUTOPILOT_BASE:-}" ] && [ -n "${AUTOPILOT_RUN_CONFIG:-}" ]; }; then die 64 'lite requires AUTOPILOT_BASE and AUTOPILOT_RUN_CONFIG'; fi
     bash "$SCRIPT_DIR/check-lite.sh" "$TOP" "$AUTOPILOT_BASE" "$COMMIT" "$AUTOPILOT_RUN_CONFIG" || die 64 'lite eligibility failed'
   fi
 }
@@ -124,7 +117,7 @@ runner_lock() {
   LOCKED=1
   trap runner_cleanup EXIT
   printf 'pid=%s\nlabel=%s\nstarted=%s\n' "$$" "$LABEL" "$(date -u +%FT%TZ)" >"$EVIDENCE_DIR/.autopilot.lock/owner" || die 70 'cannot record lock ownership'
-  [ ! -e "$EVIDENCE" ] && [ ! -L "$EVIDENCE" ] || die 73 'evidence exists; choose a new label'
+  if ! { [ ! -e "$EVIDENCE" ] && [ ! -L "$EVIDENCE" ]; }; then die 73 'evidence exists; choose a new label'; fi
   [ ! -L "$EVIDENCE_DIR/MANIFEST" ] || die 73 'symlink manifest refused'
   PARTIAL="$EVIDENCE.partial"
   [ ! -L "$PARTIAL" ] || die 73 'symlink partial refused'
@@ -135,6 +128,7 @@ runner_lock() {
   fi
   WORK="$(make_temp_dir run)" || exit 70
   WORK="$(resolve_path "$WORK")" || exit 70
+  case "$WORK/" in "$TOP/"*|"$GIT_COMMON/"*) die 64 'runner scratch must be outside source and Git storage' ;; esac
   OUTPUT="$WORK/output"
   printf '%s\n' "$POLICY" >"$WORK/policy.json" || die 70 'cannot freeze policy'
 }
@@ -145,29 +139,47 @@ runner_tree() {
   safe_worktree_add "$TOP" "$TREE" "$COMMIT" || die 70 'cannot create pinned worktree'
   RUN_HOME="$WORK/$name-home"
   RUN_TMP="$WORK/$name-tmp"
-  mkdir "$RUN_HOME" "$RUN_TMP" || die 70 'cannot create temporary HOME'
+  RUN_OUTPUT="$WORK/$name-output"
+  SOURCE_STATE="$WORK/$name-source.json"
+  mkdir "$RUN_HOME" "$RUN_TMP" "$RUN_OUTPUT" || die 70 'cannot create temporary HOME'
+  [ ! -e "$TREE/.autopilot-source-probe" ] || die 64 'reserved source probe path exists'
+  printf 'immutable\n' >"$TREE/.autopilot-source-probe" || die 70 'cannot prepare source probe'
+  python3 "$SCRIPT_DIR/source_state.py" prepare "$TREE" "$WORK/policy.json" "$SOURCE_STATE" || die 64 'write_dirs must be new output directories outside tracked source'
+  python3 "$SCRIPT_DIR/source_state.py" freeze "$TREE" "$WORK/policy.json" "$SOURCE_STATE" || die 70 'cannot freeze source inputs'
   RUN_ENV=(env -i "PATH=$PATH" "HOME=$RUN_HOME" "TMPDIR=$RUN_TMP" LC_ALL=C
-    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_OPTIONAL_LOCKS=0)
+    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_OPTIONAL_LOCKS=0 "AUTOPILOT_OUTPUT=$RUN_OUTPUT")
   for name in ${ENV_NAMES[@]+"${ENV_NAMES[@]}"}; do
     [ "${!name+x}" != x ] || RUN_ENV+=("$name=${!name}")
   done
   SANDBOX_ARGS=()
-  case "$SANDBOX" in
-    env-clean) ;;
+  BACKEND="$SANDBOX"
+  if [ "$BACKEND" = env-clean ]; then
+    if [ "$(uname -s)" = Darwin ]; then BACKEND=sandbox-exec; else BACKEND=bwrap; fi
+  fi
+  case "$BACKEND" in
     sandbox-exec)
       require sandbox-exec
       [ "$(uname -s)" = Darwin ] || die 69 'sandbox-exec requires macOS'
-      python3 "$SCRIPT_DIR/policy.py" profile "$TREE" "$RUN_HOME" "$RUN_TMP" "$GIT_COMMON" <"$WORK/policy.json" >"$WORK/profile.sb" || die 70 'cannot build sandbox profile'
+      python3 "$SCRIPT_DIR/policy.py" profile "$TREE" "$RUN_HOME" "$RUN_TMP" "$GIT_COMMON" "$TOP" "$RUN_OUTPUT" <"$WORK/policy.json" >"$WORK/profile.sb" || die 70 'cannot build sandbox profile'
       SANDBOX_ARGS=(sandbox-exec -f "$WORK/profile.sb")
       ;;
     bwrap)
       require bwrap
-      SANDBOX_ARGS=(bwrap --die-with-parent --new-session --unshare-all --cap-drop ALL)
-      while IFS= read -r path; do
-        [ ! -e "$path" ] || SANDBOX_ARGS+=(--ro-bind "$path" "$path")
-      done < <(printf '%s' "$POLICY" | jq -r '.read_paths[]')
+      SANDBOX_ARGS=(bwrap --die-with-parent --new-session --unshare-pid --unshare-user --unshare-ipc --unshare-uts --cap-drop ALL)
+      if [ "$SANDBOX" = env-clean ]; then
+        SANDBOX_ARGS+=(--bind / / --ro-bind "$TOP" "$TOP")
+      else
+        SANDBOX_ARGS+=(--unshare-net)
+        while IFS= read -r path; do
+          [ ! -e "$path" ] || SANDBOX_ARGS+=(--ro-bind "$path" "$path")
+        done < <(printf '%s' "$POLICY" | jq -r '.read_paths[]')
+      fi
       SANDBOX_ARGS+=(--dev /dev --proc /proc --ro-bind "$GIT_COMMON" "$GIT_COMMON"
-        --bind "$TREE" "$TREE" --bind "$RUN_HOME" "$RUN_HOME" --bind "$RUN_TMP" "$RUN_TMP")
+        --ro-bind "$TREE" "$TREE" --bind "$RUN_HOME" "$RUN_HOME" --bind "$RUN_TMP" "$RUN_TMP"
+        --bind "$RUN_OUTPUT" "$RUN_OUTPUT")
+      while IFS= read -r path; do
+        SANDBOX_ARGS+=(--bind "$TREE/$path" "$TREE/$path")
+      done < <(printf '%s' "$POLICY" | jq -r '.write_dirs[]')
       if [ ! -d "$WORK/denied-directory" ]; then
         mkdir "$WORK/denied-directory"
         : >"$WORK/denied-file"
@@ -177,6 +189,9 @@ runner_tree() {
         if [ -f "$path" ]; then SANDBOX_ARGS+=(--ro-bind "$WORK/denied-file" "$path");
         else SANDBOX_ARGS+=(--ro-bind "$WORK/denied-directory" "$path"); fi
       done < <(printf '%s' "$POLICY" | jq -r '.deny_paths[]')
+      # Synthetic ancestor directories must not be writable in strict mode.
+      # Remount only the new root: explicit output/HOME/TMP mounts stay writable.
+      [ "$SANDBOX" = env-clean ] || SANDBOX_ARGS+=(--remount-ro /)
       SANDBOX_ARGS+=(--chdir "$TREE$SUBDIR")
       ;;
   esac
@@ -200,6 +215,18 @@ runner_command() {
 }
 
 runner_probe() {
+  # The source guard runs even in env-clean mode; no chmod-only fallback.
+  local source_q output_q
+  printf -v source_q '%q' "$TREE/.autopilot-source-probe"
+  printf -v output_q '%q' "$RUN_OUTPUT/probe"
+  if ! runner_command "test \"\$(cat $source_q)\" = immutable && printf writable > $output_q"; then
+    clean_output <"$OUTPUT" >>"$PARTIAL" || die 70 'cannot save source probe failure'
+    clean_output <"$OUTPUT" >&2
+    return 1
+  fi
+  if runner_command "printf breach >> $source_q"; then return 1; fi
+  runner_source_unchanged || return 1
+  printf -- '- source guard: PASS (source write denied; artifact output writable)\n' >>"$PARTIAL" || return 1
   [ "$SANDBOX" != env-clean ] || return 0
   # Controlled probes use only generated files; no real credentials are read.
   printf 'allowed\n' >"$RUN_HOME/probe"
@@ -214,7 +241,7 @@ runner_probe() {
     return 1
   fi
   if runner_command "cat $outside_q"; then return 1; fi
-  if runner_command "printf breach >> $outside_q"; then return 1; fi
+  if runner_command "printf breach >> $outside_q"; then printf 'outside-path write probe unexpectedly succeeded\n' >&2; return 1; fi
   # UDP connect makes no request/packet. It succeeds outside a network sandbox;
   # denied socket creation or no route in a bwrap net namespace proves isolation.
   local network="/usr/bin/perl -MSocket -e 'socket(my \$s, PF_INET, SOCK_DGRAM, 0) or exit 9; connect(\$s, sockaddr_in(443, inet_aton(\"1.1.1.1\"))) or exit 9; exit 0'"
@@ -230,7 +257,7 @@ runner_header() {
     printf -- '- started: %s\n- recorded by sha256: %s\n' "$(date -u +%FT%TZ)" "$(sha256_of "$SCRIPT_DIR/$(basename "$0")")"
     printf -- '- policy: %s\n' "$POLICY"
     local helper helper_hash
-    for helper in lib.sh runner.sh redact.py policy.py evidence.py record_scope.py failure_signature.py; do
+    for helper in lib.sh runner.sh redact.py policy.py evidence.py record_scope.py failure_signature.py source_state.py; do
       helper_hash="$(sha256_of "$SCRIPT_DIR/$helper")" || exit 70
       printf -- '- helper %s sha256: %s\n' "$helper" "$helper_hash"
     done
@@ -241,7 +268,7 @@ runner_header() {
 }
 
 runner_phase() {
-  local phase="$1" command status keep
+  local phase="$1" command status keep match_status
   shift
   PHASE_FAILED=0
   PHASE_INFRA=0
@@ -251,6 +278,16 @@ runner_phase() {
   for command in "$@"; do
     runner_command "$command"
     status=$?
+    if ! runner_source_unchanged; then
+      PHASE_FAILED=1
+      PHASE_INFRA=1
+      printf -- '- source changed or could not be verified after command\n' >>"$PARTIAL" || die 70 'cannot record source verification failure'
+    fi
+    if ! python3 "$SCRIPT_DIR/failure_signature.py" activity "$OUTPUT"; then
+      PHASE_INFRA=1
+      PHASE_FAILED=1
+      printf -- '- command output has no active TAP tests or could not be parsed\n' >>"$PARTIAL" || die 70 'cannot record missing test activity'
+    fi
     keep="$TAIL_LINES"
     if [ "$status" -ne 0 ]; then
       PHASE_FAILED=1
@@ -269,22 +306,35 @@ runner_phase() {
       # Redact the WHOLE output before selecting lines: multi-line secrets and
       # undecodable prefixes must not escape because they fell outside the tail.
       clean_output <"$OUTPUT" >"$WORK/clean-output" || exit 70
-      tail -n "$keep" "$WORK/clean-output"
-      if [ -n "${GATE_KEEP_REGEX:-}" ]; then grep -anE -- "$GATE_KEEP_REGEX" "$WORK/clean-output" | tail -n 20; fi
+      tail -n "$keep" "$WORK/clean-output" || exit 70
+      if [ -n "${GATE_KEEP_REGEX:-}" ]; then
+        grep -anE -- "$GATE_KEEP_REGEX" "$WORK/clean-output" >"$WORK/matches"
+        match_status=$?
+        [ "$match_status" -le 1 ] || exit 70
+        tail -n 20 "$WORK/matches" || exit 70
+      fi
       printf '\n```\n\n'
     } | clean_output >>"$PARTIAL" || die 70 'cannot write command evidence'
     printf '[%s] exit %s\n' "$phase" "$status"
   done
 }
 
+runner_source_unchanged() {
+  python3 "$SCRIPT_DIR/source_state.py" verify "$TREE" "$WORK/policy.json" "$SOURCE_STATE"
+}
+
 runner_unchanged() {
   [ "$(git -C "$TOP" rev-parse HEAD)" = "$COMMIT" ] || return 1
-  [ -z "$(cd "$TOP" && git_code status --porcelain)" ] || return 1
+  local state
+  state="$(cd "$TOP" && git_code status --porcelain)" || return 1
+  [ -z "$state" ] || return 1
   [ "$(git -C "$TREE" rev-parse HEAD)" = "$COMMIT" ] || return 1
 }
 
 runner_clean_tree() {
-  [ -z "$(cd "$TREE" && git_code status --porcelain)" ]
+  local state
+  state="$(cd "$TREE" && git_code status --porcelain --untracked-files=no)" || return 1
+  [ -z "$state" ] && runner_source_unchanged
 }
 
 runner_finish() {

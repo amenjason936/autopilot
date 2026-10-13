@@ -1,6 +1,6 @@
 # Autopilot
 
-Run a bounded, approved coding plan with committed machine checks, independent review and recoverable evidence. Every gate has three outcomes: **run** a check, **review** a claim, or **park** work that needs authority or access. Version **0.2.0-rc.1** upgrades the `ce24999` prototype; see [CHANGELOG.md](CHANGELOG.md) and the [validation report](VALIDATION.md).
+Run a bounded, approved coding plan with committed machine checks, independent review and recoverable evidence. Every gate has three outcomes: **run** a check, **review** a claim, or **park** work that needs authority or access. Version **0.2.0-rc.2** repairs the independent rc.1 review findings; see [CHANGELOG.md](CHANGELOG.md) and the [validation report](VALIDATION.md).
 
 ```mermaid
 flowchart LR
@@ -19,13 +19,13 @@ Use for a reversible plan with measurable criteria, a working Git repository and
 
 ## Install and run
 
-Requires Bash 3.2+, Git, Perl, Python 3, jq; strong sandboxing needs macOS `sandbox-exec` or Linux `bwrap` with usable user namespaces. Tests need Bats and ShellCheck (`brew install bats-core shellcheck` on macOS; distro equivalents on Linux). Strict runs are offline: provision dependencies before takeoff.
+Requires Bash 3.2+, Git, Perl, Python 3, jq; every execution needs macOS `sandbox-exec` or Linux `bwrap` with usable user namespaces for read-only source protection; restrictive policies add filesystem/network isolation. Tests need Bats and ShellCheck (`brew install bats-core shellcheck` on macOS; distro equivalents on Linux). Strict runs are offline: provision dependencies before takeoff.
 
-Install this entire folder, including `scripts/`, templates, briefs and `agents/`; do not copy only SKILL.md:
+For a local candidate, clone from the delivered local repository and select its tag. The remote command below works only after that tag is published. Install this entire folder, including `scripts/`, templates, briefs and `agents/`; do not copy only SKILL.md:
 
 ```sh
 # Codex: choose a fresh destination; inspect/back up an existing installation first.
-git clone https://github.com/amenjason936/autopilot.git "$HOME/.codex/skills/autopilot"
+git clone --branch v0.2.0-rc.2 https://github.com/amenjason936/autopilot.git "$HOME/.codex/skills/autopilot"
 export AUTOPILOT_HOME="$HOME/.codex/skills/autopilot"
 ```
 
@@ -41,6 +41,6 @@ bash scripts/training-ground.sh /tmp/autopilot-demo-new
 bash scripts/verify-evidence.sh /tmp/autopilot-demo-new/repo/evidence
 ```
 
-Linux/macOS CI runs the same checks and the fixed training ground. A manifest binds evidence bytes to the reviewed commit; it is not an authenticated signature. `env-clean` is environment hygiene, not filesystem/network isolation. Strong-sandbox claims require passing live probes. See [VALIDATION.md](VALIDATION.md) for what has actually been run and what remains unverified.
+Linux/macOS CI runs the same checks and the fixed training ground. A manifest binds evidence bytes to the reviewed commit; it is not an authenticated signature. `env-clean` sanitizes the environment and protects source/Git from writes; it still permits other host/network access. Outputs use `$AUTOPILOT_OUTPUT`, HOME/TMPDIR, or new `write_dirs` declared in policy. Strong-sandbox claims require passing live probes. See [VALIDATION.md](VALIDATION.md) for what has actually been run and what remains unverified.
 
 [MIT License](LICENSE).

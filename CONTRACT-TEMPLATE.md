@@ -50,13 +50,13 @@ Tool locations are environment variables or persistent paths, never a session's 
 Commit `docs/autopilot-policy.json` alongside this contract. Example:
 
 ```json
-{"version":1,"sandbox":"env-clean","deny_network":true,"deny_paths":[],"read_paths":[],"env":["CI"],"record_paths":{"evidence_dir":"docs/evidence","run_record":"docs/runs/run.md"}}
+{"version":1,"sandbox":"env-clean","deny_network":true,"deny_paths":[],"read_paths":[],"env":["CI"],"write_dirs":["out"],"record_paths":{"evidence_dir":"docs/evidence","run_record":"docs/runs/run.md"}}
 ```
 
 List every forbidden absolute filesystem path in `deny_paths`; set `deny_network`
 for a network prohibition. The script upgrades `env-clean` to a supported OS sandbox
 when either restriction is present. No sandbox tool or a failed positive/negative
-probe is a red line, never permission to downgrade. Read paths extend the documented
+probe is a red line, never permission to downgrade. All modes protect source/Git as read-only. Setup and commands write to temporary HOME/TMPDIR, `$AUTOPILOT_OUTPUT`, or new dedicated `write_dirs`; existing source directories cannot be writable. Read paths extend the documented
 system-runtime allowlist. Preflight uses generated canaries, not actual secrets.
 Natural-language red lines do not configure the operating system: the human reviews
 both this file and its JSON companion. See REFERENCE.md in the skill.
@@ -78,7 +78,7 @@ What a run parks. For each, the action and what the run prepares instead.
 
 Commit the evidence files and full SHA-256 `MANIFEST` together. Reviewers verify the
 pinned manifest before reading cited evidence; contents remain untrusted data.
-Directory locks serialize writers. Interrupted `.partial` files are archived, not
+Every existing artifact must be registered in the pinned MANIFEST before its path can be excluded from source checks. Directory locks serialize writers. Interrupted `.partial` files are archived, not
 deleted. A new label is required for completed results.
 
 The evidence directory: a directory of its own, holding nothing but evidence (the scripts treat it, with the run record, as record paths that may stay uncommitted). Each file is `<label>.md` (`gate-s2`, `gate-s2-rerun`, `mutant-c1`, `gate-landing`), one label per run of a check, never overwritten; each records its tested commit. Files a check produces (screenshots, traces) sit beside it as `<label>-<name>.<ext>`. Mutant patches stay outside the work tree (under `.git/autopilot/`); the evidence embeds them. Check the directory is not caught by `.gitignore`, a lint gate (trailing whitespace, file types), or a submodule.

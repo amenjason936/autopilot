@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0-rc.2 — 2026-10-13
+
+- Share selected policy identity across gates, review dispatch and resume (F1).
+- Refuse failed Git reads, unexpected mutant source changes, and failed output
+  filters instead of emitting successful evidence (F2–F4).
+- Protect source/Git with an OS boundary in every mode, including env-clean;
+  explicit fresh output directories replace writable source checkouts (G1).
+- Require registered artifact inventories for evidence exclusions; restrict lite
+  to non-executable Markdown/reStructuredText (F5/F7).
+- Replace the macOS-only probe mutant detector with portable fake backends and
+  reject skip-only/empty TAP detectors (F6).
+- Real Linux validation exposed synthetic ancestor directories remaining writable;
+  strict bubblewrap roots are now remounted read-only, with explicit output mounts.
+- Add targeted rc.1 counterexample regressions, positive controls, a local Linux
+  validation image, and compatible ShellCheck guards across host versions.
+
+Scores and actual platform coverage are recorded in VALIDATION.md after independent
+review; this version entry is not an external four-party approval.
+
 ## 0.2.0-rc.1 — 2026-10-13
 
 - Pin gates and baseline/mutant checks to separate disposable worktrees; refuse

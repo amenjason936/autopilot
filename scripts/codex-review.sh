@@ -77,7 +77,7 @@ LOG="${OUT%.json}.log"
 REQUEST="$OUT.request.json"
 # Existing review evidence is never destroyed or mistaken for a new review.
 for existing in "$OUT" "$LOG" "$OUT.invalid" "${OUT%.json}.run-record.md" "$REQUEST" "$OUT.receipt.json"; do
-  [ ! -e "$existing" ] && [ ! -L "$existing" ] || die 73 'review output exists; choose a new name'
+  if ! { [ ! -e "$existing" ] && [ ! -L "$existing" ]; }; then die 73 'review output exists; choose a new name'; fi
 done
 mkdir "$OUT.lock" 2>/dev/null || die 73 'review output locked'
 WORK=

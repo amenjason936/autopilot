@@ -12,8 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 ORIGINAL_ARGC=$#
 runner_options "$@"
 shift "$OPTIONS_CONSUMED"
-[ "$LITE" -eq 0 ] && [ $# -ge 5 ] || die 64 'usage: run-mutant.sh [--dry-run] <workdir> <evidence-file> <label> <patch> <command>...'
-[ -f "$4" ] && [ ! -L "$4" ] || die 66 'patch not found or symlink'
+if ! { [ "$LITE" -eq 0 ] && [ $# -ge 5 ]; }; then die 64 'usage: run-mutant.sh [--dry-run] <workdir> <evidence-file> <label> <patch> <command>...'; fi
+if ! { [ -f "$4" ] && [ ! -L "$4" ]; }; then die 66 'patch not found or symlink'; fi
 PATCH="$(resolve_path "$4")"
 runner_init "$1" "$2" "$3"
 if [ -n "${MUTANT_FAILURE_REGEX:-}" ]; then
@@ -63,10 +63,11 @@ if [ -n "$SETUP" ]; then
   if ! { [ "$PHASE_FAILED" -eq 0 ] && runner_clean_tree; }; then runner_finish 2 'INCONCLUSIVE: mutant setup'; fi
 fi
 git -C "$TREE" apply "$PATCH" >"$OUTPUT" 2>&1 || runner_finish 2 'INCONCLUSIVE: patch no longer applies'
+python3 "$SCRIPT_DIR/source_state.py" freeze "$TREE" "$WORK/policy.json" "$SOURCE_STATE" || runner_finish 2 'INCONCLUSIVE: cannot freeze patched source'
 [ -d "$TREE$SUBDIR" ] || runner_finish 2 'INCONCLUSIVE: patch removed workdir'
 runner_phase 'mutant (patched)' "$@"
 runner_unchanged || runner_finish 2 'INCONCLUSIVE: HEAD or source tree changed'
 [ "$PHASE_INFRA" -eq 0 ] || runner_finish 2 'INCONCLUSIVE: timeout, signal or command unavailable'
 [ "$PHASE_FAILED" -eq 1 ] || runner_finish 1 SURVIVED
-[ "$PHASE_MATCHED" -eq 1 ] && [ "$PHASE_UNEXPECTED" -eq 0 ] || runner_finish 2 'INCONCLUSIVE: failure does not match the frozen signature'
+if ! { [ "$PHASE_MATCHED" -eq 1 ] && [ "$PHASE_UNEXPECTED" -eq 0 ]; }; then runner_finish 2 'INCONCLUSIVE: failure does not match the frozen signature'; fi
 runner_finish 0 KILLED

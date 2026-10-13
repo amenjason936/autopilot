@@ -25,7 +25,7 @@ def main():
             # Conservative, deterministic eligibility. Runtime edits need full
             # review even when a one-line change looks harmless to its author.
             path = name.decode('utf-8').lower()
-            if (not path.endswith(('.md', '.rst', '.txt')) or
+            if (not path.endswith(('.md', '.rst')) or
                     any(part in path for part in ('skill.md', 'agents.md', 'brief', 'policy', 'contract',
                                                   'auth', 'security', 'migration', 'lockfile', '.github/'))):
                 print('lite refused: executable or safety-sensitive change')
@@ -35,8 +35,8 @@ def main():
                 return 1
             changed += int(added) + int(removed)
         modes = git('diff', '--no-ext-diff', '--raw', base, head).decode()
-        if any('160000' in line.split('\t')[0] or '120000' in line.split('\t')[0] for line in modes.splitlines()):
-            print('lite refused: submodule or symlink changes')
+        if any(any(mode in line.split('\t')[0].split()[:2] for mode in ('100755', ':100755', '160000', ':160000', '120000', ':120000')) for line in modes.splitlines()):
+            print('lite refused: executable, submodule or symlink changes')
             return 1
     except (subprocess.CalledProcessError, ValueError):
         return 65

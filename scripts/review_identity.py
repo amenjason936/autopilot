@@ -6,6 +6,7 @@ import pathlib
 import subprocess
 import sys
 import uuid
+from policy import selected_policy
 
 
 def digest(data):
@@ -21,15 +22,16 @@ def inputs(repo, base, head, record, scope, skill):
         return subprocess.check_output(['git', '-C', repo, *args], stderr=subprocess.DEVNULL)
     base = git('rev-parse', '--verify', base + '^{commit}').decode().strip()
     head = git('rev-parse', '--verify', head + '^{commit}').decode().strip()
+    policy = selected_policy(repo, head)
     files = {}
-    for path in (record, 'docs/autopilot.md', 'docs/autopilot-policy.json'):
+    for path in (record, 'docs/autopilot.md', policy['path']):
         exists = subprocess.call(['git', '-C', repo, 'cat-file', '-e', head + ':' + path],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
         files[path] = digest(git('show', head + ':' + path)) if exists else None
     if files[record] is None:
         raise ValueError('missing pinned record')
     return dict(repository=str(pathlib.Path(repo).resolve()), base=base, head=head, scope=scope,
-                record=record, files=files,
+                record=record, files=files, execution_policy=policy,
                 brief_sha256=digest((pathlib.Path(skill)/'CODEX-BRIEF.md').read_bytes()),
                 schema_sha256=digest((pathlib.Path(skill)/'codex-findings.schema.json').read_bytes()))
 
@@ -72,16 +74,7 @@ def main():
             return 70
     elif mode == 'dispatch' and len(sys.argv) == 5:
         repo, head, skill = sys.argv[2:]
-        proc = subprocess.run(['git', '-C', repo, 'show', head+':docs/autopilot-policy.json'], capture_output=True)
-        if proc.returncode:
-            contract = subprocess.call(['git', '-C', repo, 'cat-file', '-e', head+':docs/autopilot.md'],
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return 64 if contract == 0 else 0
-        normalized = subprocess.run([sys.executable, str(pathlib.Path(skill)/'scripts/policy.py')],
-                                    input=proc.stdout, capture_output=True)
-        if normalized.returncode:
-            return 64
-        policy = json.loads(normalized.stdout)
+        policy = selected_policy(repo, head)['effective']
         if policy['sandbox'] != 'env-clean' or policy['deny_network'] or policy['deny_paths']:
             return 77
     else:

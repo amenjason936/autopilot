@@ -32,15 +32,29 @@ TARGETS = [
     ('c3-lite-boundary', 'scripts/lite.py', 'changed <= 50', 'changed <= 51', 'lite exact boundary permits 50', 'tests/supplements.bats'),
     ('c4-portability', 'scripts/training-ground.sh', 'SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"', 'SKILL_DIR="$HOME/.claude/skills/autopilot"', 'relocated training uses package fixtures', 'tests/supplements.bats'),
     ('supplement-evidence-write', 'scripts/lib.sh', 'die() {', 'die() {\n  case "${2:-}" in "cannot write command evidence"|"cannot write evidence footer"|"incomplete evidence cannot be published") return 0 ;; esac', 'evidence write failure cannot publish', 'tests/supplements.bats'),
-    ('supplement-failure-signature', 'scripts/run-mutant.sh', '[ "$PHASE_MATCHED" -eq 1 ] && [ "$PHASE_UNEXPECTED" -eq 0 ] || runner_finish 2', 'true || runner_finish 2', 'failure signature rejects unrelated errors', 'tests/supplements.bats'),
+    ('supplement-failure-signature', 'scripts/run-mutant.sh', 'if ! { [ "$PHASE_MATCHED" -eq 1 ] && [ "$PHASE_UNEXPECTED" -eq 0 ]; }; then', 'if false; then', 'failure signature rejects unrelated errors', 'tests/supplements.bats'),
     ('supplement-record-scope', 'scripts/runner.sh', 'python3 "$SCRIPT_DIR/record_scope.py" "$TOP" "$COMMIT" "$EVIDENCE_DIR" "$RECORD"', 'cat >/dev/null', 'record exclusions reject undeclared', 'tests/supplements.bats'),
     ('supplement-review-identity', 'scripts/review_identity.py', "if (job['version'] != 1", "if False and (job['version'] != 1", 'review identity rejects stale head scope', 'tests/supplements.bats'),
     ('supplement-review-policy', 'scripts/review_identity.py', "if policy['sandbox'] != 'env-clean' or policy['deny_network'] or policy['deny_paths']:", 'if False:', 'restrictive policy parks cloud dispatch', 'tests/supplements.bats'),
     ('supplement-resume', 'scripts/runner.sh', '[ "${GATE_RERUN_POLICY:-}" = safe ]', 'true', 'interrupted side effects stay parked', 'tests/supplements.bats'),
 
-    ('supplement-lite-risk', 'scripts/lite.py', "if (not path.endswith(('.md', '.rst', '.txt')) or", "if False and (not path.endswith(('.md', '.rst', '.txt')) or", 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),
+    ('supplement-lite-risk', 'scripts/lite.py', "if (not path.endswith(('.md', '.rst')) or", "if False and (not path.endswith(('.md', '.rst')) or", 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),
     ('author-output-symlink', 'scripts/runner.sh', 'python3 "$SCRIPT_DIR/evidence.py" path "$2"', 'true', 'committed evidence symlink cannot redirect writer', 'tests/supplements.bats'),
+    ('rc2-policy-selection', 'scripts/policy.py', "path = os.environ.get('GATE_POLICY', 'docs/autopilot-policy.json')", "path = 'docs/autopilot-policy.json'", 'alternate policy controls review dispatch', 'tests/rc2.bats'),
+    ('rc2-git-errors', 'scripts/runner.sh', 'state="$(cd "$TOP" && git_code status --porcelain)" || return 1', 'state="$(cd "$TOP" && git_code status --porcelain)"', 'failed git status with empty output', 'tests/rc2.bats'),
+    ('rc2-source-snapshot', 'scripts/source_state.py', 'if actual != json.loads(target.read_text()):', 'if False:', 'applied mutant snapshot rejects extra edits', 'tests/rc2.bats'),
+    ('rc2-filter-errors', 'scripts/runner.sh', 'tail -n "$keep" "$WORK/clean-output" || exit 70', 'tail -n "$keep" "$WORK/clean-output"', 'failed output filters cannot publish', 'tests/rc2.bats'),
+    ('rc2-lite-data', 'scripts/lite.py', "if (not path.endswith(('.md', '.rst')) or", "if (not path.endswith(('.md', '.rst', '.txt')) or", 'lite refuses dependency build executable', 'tests/rc2.bats'),
+    ('rc2-record-inventory', 'scripts/record_scope.py', "if set(tracked) - {'MANIFEST'} != set(inventory):", 'if False:', 'record inventory rejects HTML and JSON', 'tests/rc2.bats'),
+    ('rc2-skip-only', 'scripts/failure_signature.py', 'return 2 if plans and (not active or any(int(p) == 0 for p in plans)) else 0', 'return 0', 'skip-only and zero-test TAP detectors', 'tests/rc2.bats'),
 ]
+
+# Each host attacks its actual source-protection backend, not an unused adapter.
+TARGETS.append(('rc2-source-readonly',
+    'scripts/policy.py' if sys.platform == 'darwin' else 'scripts/runner.sh',
+    "lines.append(f'(deny file-write* (require-all (subpath {quote(root)}){exceptions}))')" if sys.platform == 'darwin' else '--ro-bind "$TREE" "$TREE"',
+    'pass' if sys.platform == 'darwin' else '--bind "$TREE" "$TREE"',
+    'source write and restore is prevented', 'tests/rc2.bats'))
 
 
 def main():
@@ -65,7 +79,8 @@ def main():
         status = subprocess.call(['bash', str(repo/'scripts/run-mutant.sh'), str(repo),
                                   str(evidence/(label+'.md')), label, str(target), command],
                                  env={**os.environ, 'MUTANT_FAILURE_REGEX': r'^not ok [0-9]+ ' + re.escape(test) + r'.*$'})
-        selector = ('author-added script data control; model-level target unverified' if key == 'p0-6-output-data'
+        selector = ('rc.1 independent finding; author-concretized regression target' if key.startswith('rc2-')
+                    else 'author-added script data control; model-level target unverified' if key == 'p0-6-output-data'
                     else 'author-added evidence writer boundary regression' if key.startswith('author-')
                     else 'independent acceptance auditor target; author concretized patch' if key.startswith(('c1-', 'c3-', 'c4-'))
                     else 'independent supplemental reviewer target; author concretized patch' if key.startswith('supplement-')

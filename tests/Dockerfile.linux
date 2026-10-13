@@ -1,0 +1,6 @@
+FROM ubuntu:24.04
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    bash git perl python3 jq bats shellcheck bubblewrap ca-certificates make \
+    && useradd --create-home --uid 1001 runner
+USER runner
+WORKDIR /home/runner

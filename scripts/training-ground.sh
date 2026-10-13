@@ -23,7 +23,7 @@ git -C "$REPO" config user.name 'Autopilot Training'
 git -C "$REPO" config user.email 'training@example.invalid'
 git -C "$REPO" config commit.gpgsign false
 printf '# Synthetic fixture contract\nLocal generated files only. No production data or publishing.\n' >"$REPO/docs/autopilot.md"
-printf '{"version":1,"sandbox":"env-clean"}\n' >"$REPO/docs/autopilot-policy.json"
+printf '{"version":1,"sandbox":"env-clean","record_paths":{"evidence_dir":"evidence","run_record":"run.md"}}\n' >"$REPO/docs/autopilot-policy.json"
 export AUTOPILOT_RECORD="$REPO/run.md"
 printf '# Training run\n\n- authorization: caller invoked synthetic training ground\n- status: flying\n- current: baseline\n' >"$AUTOPILOT_RECORD"
 git -C "$REPO" add subject.sh checks.sh docs
@@ -58,15 +58,16 @@ PATCH
 expect 1 mutant weak-detector 'bash checks.sh access'
 python3 - "$REPO/checks.sh" <<'PY'
 import pathlib, sys
-p=pathlib.Path(sys.argv[1]); s=p.read_text().replace('can_write admin', 'can_write admin; if can_write guest; then exit 1; fi'); p.write_text(s)
+p=pathlib.Path(sys.argv[1]); s=p.read_text().replace('can_write admin', 'can_write admin; if can_write guest; then echo ASSERT_GUEST_REJECTED; exit 1; fi'); p.write_text(s)
 PY
 (cd "$REPO" && bash checks.sh all)
 git -C "$REPO" add checks.sh
 git -C "$REPO" commit -qm 'fixture: require the guard to reject unauthorized roles'
+export MUTANT_FAILURE_REGEX='^ASSERT_GUEST_REJECTED$'
 expect 0 mutant strong-detector 'bash checks.sh access'
 python3 - "$REPO/docs/autopilot-policy.json" "$ROOT/forbidden" <<'PY'
 import json, pathlib, sys
-pathlib.Path(sys.argv[1]).write_text(json.dumps({'version':1,'deny_network':True,'deny_paths':[sys.argv[2]]})+'\n')
+pathlib.Path(sys.argv[1]).write_text(json.dumps({'version':1,'deny_network':True,'deny_paths':[sys.argv[2]],'record_paths':{'evidence_dir':'evidence','run_record':'run.md'}})+'\n')
 PY
 git -C "$REPO" add docs/autopilot-policy.json
 git -C "$REPO" commit -qm 'fixture: enforce the filesystem and network red lines'

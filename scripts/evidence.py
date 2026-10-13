@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Hash manifests are checked before evidence is interpreted; no shell evaluation."""
 import hashlib
+import os
 import pathlib
 import re
 import sys
@@ -30,6 +31,17 @@ def entries(directory):
 
 
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == 'complete':
+        path = pathlib.Path(sys.argv[2])
+        digest(path)  # regular file, no leaf symlink
+        content = path.read_text(encoding='utf-8')
+        if (not content.startswith('# ') or not re.search(r'^- tested commit: [0-9a-f]{40,64}$', content, re.M)
+                or not content.endswith('- result: ' + sys.argv[3] + '\n')
+                or '\n## ' not in content and 'preflight' not in sys.argv[3]):
+            raise ValueError('incomplete runner evidence')
+        with path.open('rb') as handle:
+            os.fsync(handle.fileno())
+        return 0
     if len(sys.argv) < 3 or sys.argv[1] not in ('add', 'verify'):
         return 64
     mode, directory = sys.argv[1], pathlib.Path(sys.argv[2])
@@ -54,7 +66,6 @@ def main():
         with manifest.open('a', encoding='utf-8') as handle:
             handle.write(f'{digest(directory / name)}  {name}\n')
             handle.flush()
-            import os
             os.fsync(handle.fileno())
     else:
         if not known:

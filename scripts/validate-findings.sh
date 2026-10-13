@@ -8,7 +8,7 @@
 # (or a jq too old to run the check — the message says which).
 set -uo pipefail
 
-[ $# -eq 1 ] || { echo "usage: validate-findings.sh <findings.json>" >&2; exit 64; }
+{ [ $# -eq 1 ] || [ $# -eq 7 ]; } || { echo "usage: validate-findings.sh <findings.json>" >&2; exit 64; }
 # shellcheck source=lib.sh
 . "$(cd "$(dirname "$0")" && pwd -P)/lib.sh"
 require jq
@@ -46,3 +46,9 @@ case "$STATUS" in
   3) die 70 "jq could not compile the check (jq $(jq --version 2>&1) too old?): $ERR" ;;
   *) die 70 "findings are not valid JSON: $1${ERR:+ — $ERR}" ;;
 esac
+
+# A one-argument call validates structure only and cannot authorize review reuse.
+if [ $# -eq 7 ]; then
+  SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+  python3 "$SKILL_DIR/scripts/review_identity.py" verify "$@" "$SKILL_DIR" || die 70 'findings do not belong to the expected review request and snapshot'
+fi

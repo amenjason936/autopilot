@@ -62,6 +62,7 @@ load test_helper
 }
 
 @test "partial resume archives old content and never overwrites completed evidence" {
+  export GATE_RERUN_POLICY=safe
   printf 'interrupted payload\n' >"$EVID/resume.md.partial"
   run gate resume true
   [ "$status" -eq 0 ]

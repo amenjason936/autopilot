@@ -16,6 +16,9 @@ shift "$OPTIONS_CONSUMED"
 [ -f "$4" ] && [ ! -L "$4" ] || die 66 'patch not found or symlink'
 PATCH="$(resolve_path "$4")"
 runner_init "$1" "$2" "$3"
+if [ -n "${MUTANT_FAILURE_REGEX:-}" ]; then
+  python3 "$SCRIPT_DIR/failure_signature.py" validate "$MUTANT_FAILURE_REGEX" "${MUTANT_FAILURE_EXIT:-1}" || die 64 'invalid mutant failure signature'
+fi
 shift 4
 if [ "$DRY_RUN" -eq 1 ]; then
   runner_preview "$@"
@@ -40,10 +43,11 @@ done <<EOF
 $MUTATED
 EOF
 {
+  printf -- '- failure signature: %s; expected exit: %s\n' "${MUTANT_FAILURE_REGEX:-<unset; KILLED is unavailable>}" "${MUTANT_FAILURE_EXIT:-1}"
   printf -- '- mutated files: %s\n- patch sha256: %s\n\n```diff\n' "$MUTATED" "$(sha256_of "$PATCH")"
   cat "$PATCH"
   printf '\n```\n'
-} | clean_output >>"$PARTIAL"
+} | clean_output >>"$PARTIAL" || die 70 'cannot write mutation evidence'
 SETUP="${MUTANT_SETUP:-${GATE_SETUP:-}}"
 if [ -n "$SETUP" ]; then
   runner_phase 'baseline setup' "$SETUP"
@@ -64,4 +68,5 @@ runner_phase 'mutant (patched)' "$@"
 runner_unchanged || runner_finish 2 'INCONCLUSIVE: HEAD or source tree changed'
 [ "$PHASE_INFRA" -eq 0 ] || runner_finish 2 'INCONCLUSIVE: timeout, signal or command unavailable'
 [ "$PHASE_FAILED" -eq 1 ] || runner_finish 1 SURVIVED
+[ "$PHASE_MATCHED" -eq 1 ] && [ "$PHASE_UNEXPECTED" -eq 0 ] || runner_finish 2 'INCONCLUSIVE: failure does not match the frozen signature'
 runner_finish 0 KILLED

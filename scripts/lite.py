@@ -10,8 +10,8 @@ def main():
         data = json.load(open(config, encoding='utf-8'))
     except (OSError, ValueError):
         return 64
-    if (not isinstance(data, dict) or set(data) != {'stages', 'network', 'publish'} or
-            type(data['stages']) is not int or type(data['network']) is not bool or type(data['publish']) is not bool):
+    if (not isinstance(data, dict) or set(data) != {'stages', 'network', 'publish', 'risk'} or
+            type(data['stages']) is not int or type(data['network']) is not bool or type(data['publish']) is not bool or not isinstance(data['risk'], str)):
         return 64
     def git(*args):
         return subprocess.check_output(['git', '-C', repo, *args], stderr=subprocess.DEVNULL)
@@ -21,7 +21,15 @@ def main():
         delta = git('diff', '--no-ext-diff', '--no-renames', '--numstat', '-z', base, head)
         changed = 0
         for row in filter(None, delta.split(b'\0')):
-            added, removed, _ = row.split(b'\t', 2)
+            added, removed, name = row.split(b'\t', 2)
+            # Conservative, deterministic eligibility. Runtime edits need full
+            # review even when a one-line change looks harmless to its author.
+            path = name.decode('utf-8').lower()
+            if (not path.endswith(('.md', '.rst', '.txt')) or
+                    any(part in path for part in ('skill.md', 'agents.md', 'brief', 'policy', 'contract',
+                                                  'auth', 'security', 'migration', 'lockfile', '.github/'))):
+                print('lite refused: executable or safety-sensitive change')
+                return 1
             if added == b'-' or removed == b'-':
                 print('lite refused: binary changes')
                 return 1
@@ -32,7 +40,7 @@ def main():
             return 1
     except (subprocess.CalledProcessError, ValueError):
         return 65
-    eligible = changed <= 50 and data == {'stages': 1, 'network': False, 'publish': False}
+    eligible = changed <= 50 and data == {'stages': 1, 'network': False, 'publish': False, 'risk': 'documentation-only'}
     print(f'lite {"eligible" if eligible else "refused"}: {changed} changed lines; landing audit remains mandatory')
     return 0 if eligible else 1
 

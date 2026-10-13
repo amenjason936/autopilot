@@ -29,7 +29,7 @@ def paths(values, aliases=False):
 
 def normalize():
     supplied = json.load(sys.stdin)
-    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env'}
+    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths'}
     if not isinstance(supplied, dict) or set(supplied) - allowed or supplied.get('version', 1) != 1:
         raise ValueError('unsupported policy schema')
     network = supplied.get('deny_network', False)
@@ -54,7 +54,14 @@ def normalize():
         raise ValueError('unknown sandbox')
     if (network or denied) and sandbox == 'env-clean':
         sandbox = 'sandbox-exec' if platform.system() == 'Darwin' else 'bwrap'
-    return dict(version=1, sandbox=sandbox, deny_network=network, deny_paths=denied,
+    records = supplied.get('record_paths', {})
+    if not isinstance(records, dict) or set(records) - {'evidence_dir', 'run_record'}:
+        raise ValueError('invalid record paths')
+    for value in records.values():
+        if (not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_./-]+', value)
+                or value.startswith('/') or any(x in ('', '.', '..') for x in value.split('/'))):
+            raise ValueError('record paths must be relative and dedicated')
+    return dict(record_paths=records, version=1, sandbox=sandbox, deny_network=network, deny_paths=denied,
                 read_paths=reads, env=names)
 
 

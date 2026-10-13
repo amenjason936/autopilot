@@ -4,7 +4,7 @@ lint:
 	shellcheck -x -P scripts scripts/*.sh
 syntax:
 	@for script in scripts/*.sh; do bash -n "$$script" || exit; done
-	python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path("scripts").glob("*.py")]'
+	python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for root in ("scripts", "tests") for p in pathlib.Path(root).glob("*.py")]'
 test:
 	bats tests
 training:

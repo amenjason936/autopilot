@@ -31,7 +31,7 @@ export AUTOPILOT_HOME="$HOME/.codex/skills/autopilot"
 
 Invoke explicitly as `$autopilot` with a plan or run record in Codex. The supplied `agents/openai.yaml` preserves manual invocation. Claude Code/ccmr installations use the same folder in the active host's skill directory; point `AUTOPILOT_HOME` there and invoke `/autopilot`. For Claude hosts, preserve their `disable-model-invocation: true` frontmatter setting in the installed copy. ccmr launchers must pass `AUTOPILOT_HOME` and the intended workdir explicitly; no hardcoded `~/.claude` path is required. This repository does not install a launcher or change your account configuration.
 
-Start with [SKILL.md](SKILL.md), then [the complete local example](examples/README.md). Copy the [contract template](CONTRACT-TEMPLATE.md), define its committed JSON policy, and preview commands before the approved run. [REFERENCE.md](REFERENCE.md) covers every setting, exit code, trust boundary and recovery path. `--lite` has fixed eligibility: ≤50 changed lines, one stage, no network work or publishing; its landing audit remains mandatory.
+Start with [SKILL.md](SKILL.md), then [the complete local example](examples/README.md). Copy the [contract template](CONTRACT-TEMPLATE.md), define its committed JSON policy, and preview commands before the approved run. [REFERENCE.md](REFERENCE.md) covers every setting, exit code, trust boundary and recovery path. `--lite` has fixed eligibility: ≤50 changed lines, one stage, low-risk documentation only, no network work or publishing; its landing audit remains mandatory.
 
 ## Verify
 

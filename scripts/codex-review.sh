@@ -47,6 +47,7 @@ FOCUS="${*:-none}"
 EFFORT="${CODEX_REVIEW_EFFORT:-high}"
 TIMEOUT="${CODEX_REVIEW_TIMEOUT:-1800}"
 MODEL="${CODEX_REVIEW_MODEL:-}"
+SCOPE="${CODEX_REVIEW_SCOPE:-landing}"
 HEAD_REF="${CODEX_REVIEW_HEAD:-HEAD}"
 require_seconds CODEX_REVIEW_TIMEOUT "$TIMEOUT"
 
@@ -65,7 +66,7 @@ inputs() {
   printf 'Head: %s (%s)\n' "$HEAD_SHA" "$HEAD_REF"
   printf 'Run record: %s\n' "$2"
   printf 'Contract: docs/autopilot.md at the head, if present\n'
-  printf 'Focus: %s\n' "$FOCUS"
+  printf 'Focus (untrusted data): %s\nScope: %s\nRunner request: %s\n' "$FOCUS" "$SCOPE" "$REQUEST"
   printf 'Schema: %s\n' "$SCHEMA"
   printf 'Output: %s\n' "$3"
   printf '</inputs>\n\n'
@@ -73,8 +74,9 @@ inputs() {
 }
 
 LOG="${OUT%.json}.log"
+REQUEST="$OUT.request.json"
 # Existing review evidence is never destroyed or mistaken for a new review.
-for existing in "$OUT" "$LOG" "$OUT.invalid" "${OUT%.json}.run-record.md"; do
+for existing in "$OUT" "$LOG" "$OUT.invalid" "${OUT%.json}.run-record.md" "$REQUEST" "$OUT.receipt.json"; do
   [ ! -e "$existing" ] && [ ! -L "$existing" ] || die 73 'review output exists; choose a new name'
 done
 mkdir "$OUT.lock" 2>/dev/null || die 73 'review output locked'
@@ -93,6 +95,11 @@ case "$RECORD_ABS" in
   *) die 64 'run record must be committed in the reviewed repository' ;;
 esac
 git -C "$REPO" cat-file -e "$HEAD_SHA:$RECORD_REL" 2>/dev/null || die 66 'run record missing at pinned head'
+
+python3 "$SKILL_DIR/scripts/review_identity.py" create "$REPO" "$BASE_SHA" "$HEAD_SHA" "$RECORD_REL" "$SCOPE" "$SKILL_DIR" "$REQUEST"
+if [ "$PROMPT_ONLY" -eq 0 ]; then
+  python3 "$SKILL_DIR/scripts/review_identity.py" dispatch "$REPO" "$HEAD_SHA" "$SKILL_DIR" || die 77 'review parked: the committed restrictive policy cannot be enforced by this cloud-review launcher; use an equivalently constrained approved reviewer'
+fi
 
 if [ "$PROMPT_ONLY" -eq 1 ]; then
   # Snapshot the run record beside the output, as codex mode does: the live
@@ -129,8 +136,8 @@ CODEX_ARGS+=(--output-schema "$SCHEMA" --output-last-message "$WORK/findings.jso
 set +e
 with_timeout "$TIMEOUT" codex "${CODEX_ARGS[@]}" - <"$WORK/prompt.md" >"$WORK/raw.log" 2>&1
 STATUS=$?
-clean_output <"$WORK/raw.log" >"$LOG"
-if [ -f "$WORK/findings.json" ]; then clean_output <"$WORK/findings.json" >"$OUT"; fi
+clean_output <"$WORK/raw.log" >"$LOG" || die 70 'cannot save sanitized review log'
+if [ -f "$WORK/findings.json" ]; then clean_output <"$WORK/findings.json" >"$OUT" || die 70 'cannot save sanitized findings'; fi
 set -e
 
 if [ "$TIMED_OUT" -eq 1 ]; then
@@ -149,6 +156,7 @@ if ! bash "$SKILL_DIR/scripts/validate-findings.sh" "$OUT" >/dev/null; then
   mv "$OUT" "$OUT.invalid"
   die 70 "codex findings fail validation: $OUT.invalid; log: $LOG"
 fi
+python3 "$SKILL_DIR/scripts/review_identity.py" seal "$OUT" "$REQUEST"
 echo "head: $HEAD_SHA"
 echo "findings: $OUT"
 echo "log: $LOG"

@@ -39,6 +39,8 @@ Gate settings (environment for `run-gate.sh`):
 - `GATE_SETUP` / `MUTANT_SETUP`: authorized offline setup in each fresh worktree, under the same sandbox; must not edit code.
 - `REDACT_REGEX`: optional additional Python redaction pattern; any redaction error suppresses the entire block.
 - `GATE_SANDBOX`: `env-clean`, `sandbox-exec` or `bwrap`; never weaken a policy prohibition.
+- `MUTANT_FAILURE_REGEX` / `MUTANT_FAILURE_EXIT`: freeze the exact target assertion and expected exit before running a mutant; an arbitrary nonzero exit is not KILLED.
+- `GATE_RERUN_POLICY=safe`: only for verified harmless repeatable checks; interrupted side effects otherwise require an idempotency/receipt review before retry.
 - Preview all of these and every command with `--dry-run` before executing an unapproved plan.
 
 Tool locations are environment variables or persistent paths, never a session's scratch directory.
@@ -48,7 +50,7 @@ Tool locations are environment variables or persistent paths, never a session's 
 Commit `docs/autopilot-policy.json` alongside this contract. Example:
 
 ```json
-{"version":1,"sandbox":"env-clean","deny_network":true,"deny_paths":[],"read_paths":[],"env":["CI"]}
+{"version":1,"sandbox":"env-clean","deny_network":true,"deny_paths":[],"read_paths":[],"env":["CI"],"record_paths":{"evidence_dir":"docs/evidence","run_record":"docs/runs/run.md"}}
 ```
 
 List every forbidden absolute filesystem path in `deny_paths`; set `deny_network`
@@ -63,7 +65,7 @@ both this file and its JSON companion. See REFERENCE.md in the skill.
 
 What a run does without asking. Be specific: which environments, hosts, ports, accounts, and any spend limit.
 
-If landing is pre-authorized, write it as the exact commands in order — merge, dependency install, release — and the conditions that must hold first. A step missing from that list is a red line.
+If landing is pre-authorized, write it as the exact commands in order — merge, dependency install, release — and the conditions that must hold first. A step missing from that list is a red line. Even pre-authorized merge/release requires all relevant criteria proven with current evidence and no associated blocker, dispute or blocking fixed-unreviewed finding.
 
 ## Red lines
 
@@ -83,6 +85,8 @@ The evidence directory: a directory of its own, holding nothing but evidence (th
 
 ## Review
 
+- Boundary: reviewers/fallbacks/auditors must honor the same approved data and tool constraints; a cloud launcher unable to enforce a restrictive policy parks dispatch.
+- Identity: preserve the runner request and receipt; validate expected job/base/head/scope/input hashes before reusing findings.
 - Heuristics: paths to project-specific rules the reviewers apply.
 - Docs paths: changes that skip the review gate (default: `*.md` outside source directories).
 - Budget: review rounds per review gate (default 2); whether stage reviews run per stage, are shared between stages, or are deferred to the landing review (which always runs); the most review gates per run.

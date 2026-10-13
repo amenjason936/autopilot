@@ -3,21 +3,21 @@ load test_helper
 
 @test "lite requires <=50 changed lines, one stage, no network or publish" {
   base="$(git -C "$REPO" rev-parse HEAD)"
-  printf 'one\n' >"$REPO/small"
+  printf 'one\n' >"$REPO/small.md"
   commit_fixture
-  printf '{"stages":1,"network":false,"publish":false}' >"$CASE/run.json"
+  printf '{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}' >"$CASE/run.json"
   run bash "$SKILL/scripts/check-lite.sh" "$REPO" "$base" HEAD "$CASE/run.json"
   [ "$status" -eq 0 ]
   export AUTOPILOT_BASE="$base" AUTOPILOT_RUN_CONFIG="$CASE/run.json"
   run bash "$SKILL/scripts/run-gate.sh" --dry-run --lite "$REPO" "$EVID/lite.md" lite true
   [ "$status" -eq 0 ]
-  for config in '{"stages":2,"network":false,"publish":false}' '{"stages":1,"network":true,"publish":false}' '{"stages":1,"network":false,"publish":true}'; do
+  for config in '{"stages":2,"network":false,"publish":false,"risk":"documentation-only"}' '{"stages":1,"network":true,"publish":false,"risk":"documentation-only"}' '{"stages":1,"network":false,"publish":true,"risk":"documentation-only"}'; do
     printf '%s' "$config" >"$CASE/run.json"
     run bash "$SKILL/scripts/check-lite.sh" "$REPO" "$base" HEAD "$CASE/run.json"
     [ "$status" -eq 1 ]
   done
-  printf '{"stages":1,"network":false,"publish":false}' >"$CASE/run.json"
-  seq 51 >"$REPO/large"
+  printf '{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}' >"$CASE/run.json"
+  seq 51 >"$REPO/large.md"
   commit_fixture
   run bash "$SKILL/scripts/check-lite.sh" "$REPO" "$base" HEAD "$CASE/run.json"
   [ "$status" -eq 1 ]

@@ -22,6 +22,11 @@ Independent forward testing also exposed host Git filter/fsmonitor callbacks,
 symlinked evidence directories and escaped-separator redaction. Each received a
 regression check and a targeted fix.
 
+Supplemental review hardened evidence-write failure handling and completeness
+checks, frozen mutant failure signatures, approved dedicated record exclusions,
+restricted review dispatch, request/receipt identity, safe interrupted-command
+recovery and risk-based lite admission. Tiny runtime/security changes use full mode.
+
 The four-party numerical re-rating and remote CI are external acceptance steps;
 this changelog does not imply they have passed.
 

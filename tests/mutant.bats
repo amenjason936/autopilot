@@ -3,7 +3,8 @@ load test_helper
 
 @test "mutant KILLED requires green baseline and red mutant" {
   patch_value
-  run mutant killed 'test "$(cat value)" = safe'
+  export MUTANT_FAILURE_REGEX='^ASSERT_VALUE_SAFE$'
+  run mutant killed 'test "$(cat value)" = safe || { echo ASSERT_VALUE_SAFE; exit 1; }'
   [ "$status" -eq 0 ]
   grep -q 'result: KILLED' "$EVID/killed.md"
   [ "$(cat "$REPO/value")" = safe ]
@@ -42,8 +43,10 @@ load test_helper
 
 @test "mutant preserves prior partial and refuses invalid patch" {
   patch_value
+  export GATE_RERUN_POLICY=safe
   printf old >"$EVID/retry.md.partial"
-  run mutant retry 'test "$(cat value)" = safe'
+  export MUTANT_FAILURE_REGEX='^ASSERT_VALUE_SAFE$'
+  run mutant retry 'test "$(cat value)" = safe || { echo ASSERT_VALUE_SAFE; exit 1; }'
   [ "$status" -eq 0 ]
   run bash -c 'cat "$1"/retry.md.partial.*' _ "$EVID"
   [ "$output" = old ]

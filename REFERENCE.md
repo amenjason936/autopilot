@@ -88,7 +88,7 @@ Each command argument is a shell string executed with `/bin/bash --noprofile --n
 |---|---|
 | `GATE_TIMEOUT` | 3600 seconds per command; 0 disables the deadline |
 | `GATE_TAIL_LINES`, `GATE_FAIL_LINES` | 40 / 200 lines after full-output redaction |
-| `GATE_KEEP_REGEX` | Additional matching sanitized lines to keep |
+| `GATE_KEEP_REGEX` | Additional matching sanitized lines to keep, after a labelled separator as `<line>:<text>`. Use it for the criterion tests' result lines, which a 40-line tail may drop |
 | `GATE_ENV` | Extra allowed variable names; same checks as policy `env` |
 | `GATE_SETUP` | Authorized setup command, under the same sandbox |
 | `MUTANT_SETUP` | Mutant setup; defaults to `GATE_SETUP`; run separately for baseline and mutant |
@@ -127,7 +127,20 @@ A `.partial` is not proof that a side effect did or did not happen. Automatic re
 
 ## Mutation selection and lite
 
-`suggest-mutants.sh REPO BASE HEAD NEW-DIRECTORY` produces patches against HEAD and `candidates.json`. Candidates change only added/modified lines in the diff: comparisons, integer ±1, and guard disabling and empty/early returns for Python, plus `===`/`!==`, `&&`/`||`, `true`/`false`, `if (…)` → `if (false)` and `return …;` → `return;` for JavaScript/TypeScript (`if (0)` for C/C++). Python candidates exclude string/comment tokens and syntax failures. Other supported source extensions mask string and template literals and line comments on the changed line, so only code outside them changes; a line whose literal continues onto the next line yields nothing. Manual review and `git apply --check` remain mandatory. No candidates is not a reason to waive a criterion: the adversary supplies a targeted patch. Fill `selected_by` and `criterion` in the run record, not by pretending the generator is an independent reviewer.
+`suggest-mutants.sh [--include-tests] REPO BASE HEAD NEW-DIRECTORY` produces patches against HEAD and `candidates.json`. Test files (`test/`, `tests/`, `Testing/`, `test_*.py`, `*.test.*`, `*.spec.*` and the like) are skipped unless `--include-tests`; mutating the detector rarely proves anything about the code. Lines inside Python docstrings, `return None` (equivalent to `return`) and `x[0]` → `x[-1]` are skipped too. An existing output directory exits 73 with a message. Candidates change only added/modified lines in the diff: comparisons, integer ±1, and guard disabling and empty/early returns for Python, plus `===`/`!==`, `&&`/`||`, `true`/`false`, `if (…)` → `if (false)` and `return …;` → `return;` for JavaScript/TypeScript (`if (0)` for C/C++). Python candidates exclude string/comment tokens and syntax failures. Other supported source extensions mask string and template literals and line comments on the changed line, so only code outside them changes; a line whose literal continues onto the next line yields nothing. Manual review and `git apply --check` remain mandatory. No candidates is not a reason to waive a criterion: the adversary supplies a targeted patch. Fill `selected_by` and `criterion` in the run record, not by pretending the generator is an independent reviewer.
+
+`mutant-status.py [--docs GLOB]... [--check] REPO EVIDENCE-DIR [COMMIT]` reads every
+mutant evidence file in MANIFEST and compares its tested commit with COMMIT
+(default HEAD). A KILLED result stays current when everything that changed since
+is a docs path (`--docs`, the contract's *Docs paths*), a record path, or a test
+file whose change only adds lines (the detector's own files and paths that look
+like tests), so existing assertions still run unchanged. The mutated file, any
+other source, edited or deleted test lines, or helpers the detector runs mean a
+rerun. It prints label, result, tested commit, `current`/`rerun` and the reason;
+`--check` exits 1 when a KILLED mutant needs a rerun. The rule is a heuristic the
+reviewers may challenge: a test that adds an early exit can still change what
+runs. Rearranging tests silently retargets a regex signature, which is why edits
+to existing test lines always count.
 
 `check-lite.sh REPO BASE HEAD RUN-CONFIG.json` counts added+removed lines across the **entire** diff, without record-path exclusions that could hide code. Config must contain exactly `{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}`. The deterministic allowlist accepts only non-executable low-risk `.md`/`.rst` files; `.txt` is intentionally full mode because it includes requirements and build entrypoints. Executable-bit and mode-only changes are rejected. Runtime code, dependency changes and safety-sensitive names (including SKILL/AGENTS, review briefs, policy, contract, authentication, security and migrations) require full mode even for one line. The runner's `--lite` flag additionally requires `AUTOPILOT_BASE` and `AUTOPILOT_RUN_CONFIG`. Eligibility is rechecked at each gate as scope grows. These declarations cannot establish their own truth; the landing auditor compares them with the actual plan/commands. Invalid eligibility falls back to the full workflow, never silently waives review.
 
@@ -197,6 +210,24 @@ authorization where it covers them, and obtain approval only for genuinely new s
    copied cache is writable; the approved original remains read-only in strict
    mode. Freeze the cache/toolchain identity in the record. An incomplete offline
    cache is a setup failure, never permission to enable networking.
+
+   A Python project needs no setup: provision a venv outside the repository
+   before takeoff, list it in `read_paths`, and call its interpreter by absolute
+   path. The worktree is read-only, so keep Python from writing into it:
+
+   ```json
+   {"version": 1, "sandbox": "env-clean", "deny_network": true, "deny_paths": [],
+    "read_paths": ["/absolute/venv"], "env": [], "write_dirs": []}
+   ```
+
+   ```sh
+   /absolute/venv/bin/python -B -m pytest -q -p no:cacheprovider tests
+   /absolute/venv/bin/python -B -c 'import ast,pathlib; [ast.parse(p.read_text(), str(p)) for p in pathlib.Path(".").rglob("*.py")]'
+   ```
+
+   `-B` stops `__pycache__`, `-p no:cacheprovider` stops `.pytest_cache`, and
+   the `ast` pass replaces `compileall`, which writes bytecode. A mutant targets
+   one test's summary line, e.g. `MUTANT_FAILURE_REGEX='^FAILED tests/test_x.py::test_name'`.
 4. Run `--dry-run`, check the selected policy and setup, then run a new base gate
    and one representative mutant before resuming stages. Previously saved passing
    logs do not establish compatibility with the new runner. Stock Ubuntu may use
@@ -237,22 +268,34 @@ landing auditor may review a prepared, sanitized, pinned snapshot as evidence on
 
 `api-review.py [--scope SCOPE] [--evidence DIR] REPO BASE RECORD NEW-OUTPUT [FOCUS...]`
 automates this path for an OpenAI-compatible chat API, for example DeepSeek
-(`REVIEW_API_MODEL=deepseek-flash`, the default). It calls `codex-review.sh
---prompt-only` to create the request, then supplies the pinned `git log`, diff,
-changed files, contract, policy, record and (with `--evidence`) every evidence
-file plus `verify-evidence.sh` output on that snapshot. The whole prompt passes
-through the redactor before upload; `<out>.supplied.txt` lists each supplied file
-with its sha256. The model gets no tools, so `limits` must start with
+(`REVIEW_API_MODEL=deepseek-flash`, the default). It sizes the snapshot first:
+over `REVIEW_API_MAX_CHARS` it exits 64 naming the largest sections and writes
+nothing, so the output name stays free. Otherwise it calls `codex-review.sh
+--prompt-only` to create the request and supplies the pinned `git log`, the code
+diff (record paths excluded, since the record and evidence are supplied as
+files), changed files in full up to `REVIEW_API_FILE_CHARS` (larger ones as a
+diff with 60 lines of context), the contract, the effective policy (with a note
+that a network or path ban upgrades `env-clean` to the OS sandbox), the record,
+and with `--evidence DIR` the MANIFEST, `verify-evidence.sh` output for every
+file and the evidence files the record cites; the rest are listed by name
+(`--all-evidence` sends them all). The whole prompt passes through the redactor
+before upload; `<out>.supplied.txt` lists each supplied file with its sha256,
+and `<out>.log.txt` the model, usage and finish reason (`.txt`, so a `*.log`
+ignore rule never hides it). The model gets no tools, so `limits` must start with
 `snapshot-only; no command reproduction; no OS sandbox; reviewer: <model> via API`.
-A reply that is not valid findings is kept as `<out>.invalid`; a valid one is
-sealed, and resume validates it like any other review.
+A reply cut off at `REVIEW_API_MAX_TOKENS` (default 131072, reasoning included)
+exits 70 and says so; raise the limit or lower `REVIEW_API_EFFORT` (high,
+medium, low). A reply that is not valid findings is kept as `<out>.invalid`; a
+valid one is sealed, and resume validates it like any other review.
 
 It refuses (exit 77) unless `REVIEW_API_UPLOAD=approved`: set it only when the
 contract names this reviewer, model and cloud processing. The key comes from the
 variable named by `REVIEW_API_KEY_ENV` (default `DEEPSEEK_API_KEY`), or that one
 variable in `REVIEW_API_ENV_FILE`; it is never written to disk or evidence.
 Other settings: `REVIEW_API_BASE` (default `https://api.deepseek.com`),
-`REVIEW_API_EFFORT=high`, `REVIEW_API_TIMEOUT=1800`, `REVIEW_API_MAX_CHARS=600000`.
+`REVIEW_API_EFFORT=high`, `REVIEW_API_MAX_TOKENS=131072`, `REVIEW_API_TIMEOUT=1800`,
+`REVIEW_API_MAX_CHARS=600000`, `REVIEW_API_FILE_CHARS=40000`. A contract that uses it
+sets the effort, the size cap and how failed calls count against its budget.
 A different model family is the point: record it as the reviewer in the ledger
 (`deepseek-flash`), not as `codex` or a same-family fallback.
 
@@ -260,6 +303,12 @@ The CLI's restrictive-policy refusal remains: its autonomous tool boundary canno
 express the full execution policy. This documented fallback does not bypass it.
 
 ## Resume by current
+
+Before acting on the saved `current:`, check it against Git and the evidence:
+`git log` since the record's last commit, `git status`, the MANIFEST (registered
+but uncommitted files), any `.autopilot.lock` or `.partial`, and review outputs
+newer than the record. When they show the step finished, advance `current:` to
+the step they show and record the reconciliation in the record's resume log.
 
 | Saved `current:` | Next action |
 |---|---|

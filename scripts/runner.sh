@@ -168,7 +168,17 @@ runner_init() {
   POLICY_PATH="$(printf '%s' "$POLICY_SELECTION" | jq -r .path)" || die 64 'invalid policy path'
   POLICY="$(printf '%s' "$POLICY_SELECTION" | jq -c .effective)" || die 64 'invalid policy'
   printf '%s' "$POLICY" | python3 "$SCRIPT_DIR/record_scope.py" "$TOP" "$COMMIT" "$EVIDENCE_DIR" "$RECORD" || die 64 'record paths must match dedicated paths in the committed policy'
-  record_specs "$TOP" "$EVIDENCE_DIR" "$RECORD"
+  # The policy's own record paths are never code, even when this invocation
+  # writes scratch evidence elsewhere: the run's evidence may be uncommitted.
+  local policy_evidence policy_record
+  policy_evidence="$(printf '%s' "$POLICY" | jq -r '.record_paths.evidence_dir // empty')"
+  policy_record="$(printf '%s' "$POLICY" | jq -r '.record_paths.run_record // empty')"
+  [ -z "$policy_evidence" ] || policy_evidence="$TOP/$policy_evidence"
+  [ -z "$policy_record" ] || policy_record="$TOP/$policy_record"
+  if [ -n "$policy_evidence$policy_record" ]; then
+    printf '%s' "$POLICY" | python3 "$SCRIPT_DIR/record_scope.py" "$TOP" "$COMMIT" "$policy_evidence" "$policy_record" || die 64 'record paths must match dedicated paths in the committed policy'
+  fi
+  record_specs "$TOP" "$EVIDENCE_DIR" "$RECORD" "$policy_evidence" "$policy_record"
   TESTED="$(tested_commit "$TOP")" || die 70 'cannot find tested commit'
   DIRTY="$(git_code status --porcelain)" || die 66 'git status failed'
   [ -z "$DIRTY" ] || die 65 'uncommitted code: commit before running a gate'
@@ -436,7 +446,10 @@ runner_phase() {
         grep -anE -- "$GATE_KEEP_REGEX" "$WORK/clean-output" >"$WORK/matches"
         match_status=$?
         [ "$match_status" -le 1 ] || exit 70
-        tail -n 20 "$WORK/matches" || exit 70
+        if [ "$match_status" -eq 0 ]; then
+          printf -- '--- lines matching GATE_KEEP_REGEX, as <line number>:<text> (last 20) ---\n'
+          tail -n 20 "$WORK/matches" || exit 70
+        fi
       fi
       printf '\n```\n\n'
     } | clean_output >>"$PARTIAL" || die 70 'cannot write command evidence'

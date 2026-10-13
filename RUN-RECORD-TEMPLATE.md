@@ -105,3 +105,10 @@ Riskiest first.
 
 | # | where | do | should see |
 |---|---|---|---|
+
+## Resume log
+
+One row per interruption: when, the saved `current:`, what Git and the evidence showed, and what was repeated (or `nothing`).
+
+| when | saved current | found | repeated |
+|---|---|---|---|

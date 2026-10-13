@@ -22,7 +22,10 @@ setup() {
 # Tests pin the helpers as a run does at takeoff, so a work-in-progress
 # checkout of the skill can still run them. Trust-reference tests unset it.
 pin_helpers() {
-  AUTOPILOT_HELPER_PIN="$(python3 -I -S "$SKILL/scripts/integrity.py" "$SKILL/scripts")"
+  # The runner digests the resolved path (macOS TMPDIR lives behind /var -> /private/var).
+  local scripts
+  scripts="$(cd "$SKILL/scripts" && pwd -P)"
+  AUTOPILOT_HELPER_PIN="$(python3 -I -S "$scripts/integrity.py" "$scripts")"
   export AUTOPILOT_HELPER_PIN
 }
 

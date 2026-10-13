@@ -18,13 +18,18 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_response(200); self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(reply))); self.end_headers(); self.wfile.write(reply)
     def log_message(self, *a): pass
-server = http.server.HTTPServer(('127.0.0.1', 0), H)
+class Server(http.server.HTTPServer):
+    def server_bind(self):  # skip getfqdn: a slow reverse lookup on macOS runners
+        http.server.socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = '127.0.0.1', self.server_address[1]
+server = Server(('127.0.0.1', 0), H)
 (case / 'port').write_text(str(server.server_port))
 server.serve_forever()
 PY
   python3 "$CASE/stub.py" "$CASE" &
   STUB_PID=$!
-  for _ in $(seq 50); do [ -s "$CASE/port" ] && break; sleep 0.1; done
+  for _ in $(seq 300); do [ -s "$CASE/port" ] && break; sleep 0.1; done
+  [ -s "$CASE/port" ]
   export REVIEW_API_BASE="http://127.0.0.1:$(cat "$CASE/port")"
 }
 

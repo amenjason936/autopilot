@@ -1,8 +1,0 @@
-{
-  "rc": 77,
-  "output": "sandbox-exec: sandbox_apply: Operation not permitted\nFAILED: sandbox preflight (red line)\nevidence: /private/tmp/autopilot-forward-final-mcu03xv8/repo/evidence/conditional.md (tested commit 201e339e677674952b9e03e14fd01d89bf2620d9)\n",
-  "root": "/private/tmp/autopilot-forward-final-mcu03xv8",
-  "smudge_marker": false,
-  "clean_marker": false,
-  "lib_sha256": "82d1df1f16757fb4dd12752ab2a78c0318a5df62740790e240cd7cd0e761d00d"
-}

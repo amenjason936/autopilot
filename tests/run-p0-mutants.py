@@ -14,7 +14,8 @@ import pathlib
 import subprocess
 import sys
 
-# Runtime targets follow validation/independent-review.md. The output-data
+# Runtime targets follow independent-review.md on archive/rc2-full-evidence-20261013.
+# The output-data
 # mutation is an author-added script check, not the reviewer's model-level test.
 TARGETS = [
     ('p0-1-worktree', 'scripts/runner.sh', 'cd "$TREE$SUBDIR" || return 72', 'cd "$WORKDIR" || return 72', 'gate runs at pinned commit', 'tests/gate.bats'),

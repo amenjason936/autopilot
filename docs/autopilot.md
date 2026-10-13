@@ -1,5 +1,8 @@
 # Autopilot skill upgrade validation contract
 
+Historical scope: the completed local validation below is preserved on the
+[archive branch](https://github.com/luwill/autopilot/tree/archive/rc2-full-evidence-20261013). Its VALIDATION.md and validation/ artifacts have been removed from the current PR tree with user approval. This retained contract and companion policy do not authorize a new run.
+
 Scope: the user's 2026-10-13 request to upgrade this repository according to the
 optimization plan. This file records that authorized local engineering scope; it
 is not standing authorization for future runs or external actions.

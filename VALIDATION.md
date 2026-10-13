@@ -1,7 +1,7 @@
 # Upgrade validation record — 0.2.0-rc.1
 
-- status: flying (final independent acceptance audit pending)
-- current: landing acceptance audit
+- status: landed (local engineering scope complete; external acceptance parked)
+- current: local candidate ready; C6 awaits external reviewers
 - date: 2026-10-13 (Asia/Taipei)
 - base: ce2499990917362d2c9674f59bad2b21f46d1d9b
 - tested commit: 67289c7d8dcf7fa114b44e843aa795eb147c291e
@@ -65,7 +65,11 @@ control. Neither is misattributed as an independent model-level result.
 
 ## Review finding ledger
 
-The fixed-unreviewed entries await the final independent audit of this exact head.
+The final independent audit at `f0bdc03b5f4a8cc0a1144ae0c2029d82a93fd631` found
+no remaining local acceptance blocker and carried R5-R14. It verified 72 evidence
+files and independently reran nine focused tests (9/9 passed). Its one minor
+fix-attribution correction is applied below. The final report is preserved as
+`acceptance-review-final.md`; the later landing record changes no tested source.
 Every fix below has its named passing regression and current control where relevant.
 
 | ID | Reviewer / round | Finding | Status | Fix commit and detector |
@@ -73,17 +77,19 @@ Every fix below has its named passing regression and current control where relev
 | R1 | independent forward test | host Git callbacks escaped the command boundary | blocking-fixed | 12d1cd7; smudge/fsmonitor/clean canary tests; current verified-p0-4-git-callback.md |
 | R2 | independent forward test | evidence directory symlink could verify unpinned bytes | blocking-fixed | 12d1cd7; `verifier refuses evidence reached through a symlink directory` |
 | R3 | independent forward test | escaped adjacent assignments bypassed masking | blocking-fixed | 12d1cd7; `escaped line separators do not hide a second credential marker` |
-| R4 | independent forward recheck | includeIf activated filters only in linked worktrees | blocking-fixed | 6971c45; conditional-filter regression and independent-recheck.json; current verified-p0-4-conditional-filter.md |
-| R5 | acceptance audit 1 | C1/C3/C4 lacked substantive clause/independent-target controls | fixed-unreviewed | 1fb6c95; env/probe/diff/exact50-51/relocated-package tests and current controls |
-| R6 | acceptance audit 1 | finding statuses and fix/test ledger missing | fixed-unreviewed | this record commit; explicit rows R1-R14 and the target table |
-| R7 | supplemental reviewer | incomplete evidence could be published after write failure | fixed-unreviewed | 1fb6c95; `evidence write failure cannot publish an incomplete success`; verified-supplement-evidence-write.md |
-| R8 | supplemental reviewer | non-target mutant failures could count as KILLED | fixed-unreviewed | 1fb6c95; `failure signature rejects unrelated errors and wrong exits`; verified-supplement-failure-signature.md |
-| R9 | supplemental reviewer | restricted cloud review had no equivalent policy boundary | fixed-unreviewed | 1fb6c95; cloud dispatch parks before invocation; verified-supplement-review-policy.md |
-| R10 | supplemental reviewer | caller record paths could hide source; freshness too narrow | fixed-unreviewed | 1fb6c95; source exclusion regressions, verified-supplement-record-scope.md; conservative freshness rule in both references |
-| R11 | supplemental reviewer | tiny security/runtime changes could use lite | fixed-unreviewed | 1fb6c95; one-line auth/skill tests; verified-supplement-lite-risk.md |
-| R12 | supplemental reviewer | review reuse lacked input/job identity | fixed-unreviewed | 1fb6c95; stale head/scope/altered-output regression; verified-supplement-review-identity.md |
-| R13 | supplemental reviewer | retries/publication lacked explicit admission rules | fixed-unreviewed | 1fb6c95; interrupted side-effect test and verified-supplement-resume.md; publication prerequisites in SKILL/REFERENCE/contract template |
-| R14 | author final path check | committed output symlink redirected writer outside repo | fixed-unreviewed | 67289c7; committed output-link regression; verified-author-output-symlink.md |
+| R4 | independent forward recheck | includeIf activated filters only in linked worktrees | blocking-fixed | 12d1cd7 implementation; 6971c45 adds the control; conditional-filter regression and independent-recheck.json; current verified-p0-4-conditional-filter.md |
+| R5 | acceptance audit 1 | C1/C3/C4 lacked substantive clause/independent-target controls | blocking-fixed | 1fb6c95; env/probe/diff/exact50-51/relocated-package tests and current controls |
+| R6 | acceptance audit 1 | finding statuses and fix/test ledger missing | minor-fixed | f0bdc03; explicit finding rows and the independent target table |
+| R7 | supplemental reviewer | incomplete evidence could be published after write failure | blocking-fixed | 1fb6c95; `evidence write failure cannot publish an incomplete success`; verified-supplement-evidence-write.md |
+| R8 | supplemental reviewer | non-target mutant failures could count as KILLED | blocking-fixed | 1fb6c95; `failure signature rejects unrelated errors and wrong exits`; verified-supplement-failure-signature.md |
+| R9 | supplemental reviewer | restricted cloud review had no equivalent policy boundary | blocking-fixed | 1fb6c95; cloud dispatch parks before invocation; verified-supplement-review-policy.md |
+| R10 | supplemental reviewer | caller record paths could hide source; freshness too narrow | blocking-fixed | 1fb6c95; source exclusion regressions, verified-supplement-record-scope.md; conservative freshness rule in both references |
+| R11 | supplemental reviewer | tiny security/runtime changes could use lite | blocking-fixed | 1fb6c95; one-line auth/skill tests; verified-supplement-lite-risk.md |
+| R12 | supplemental reviewer | review reuse lacked input/job identity | blocking-fixed | 1fb6c95; stale head/scope/altered-output regression; verified-supplement-review-identity.md |
+| R13 | supplemental reviewer | retries/publication lacked explicit admission rules | blocking-fixed | 1fb6c95; interrupted side-effect test and verified-supplement-resume.md; publication prerequisites in SKILL/REFERENCE/contract template |
+| R14 | author final path check | committed output symlink redirected writer outside repo | blocking-fixed | 67289c7; committed output-link regression; verified-author-output-symlink.md |
+
+| R15 | final acceptance audit | R4 attributed the implementation to its later control commit | minor-fixed | final landing record corrects R4 to 12d1cd7; independent audit verified Git history; tested source unchanged |
 
 The original finding artifacts are independent-review.md, independent-recheck.json,
 acceptance-review-r1.md and supplemental-review.md. The acceptance auditor's old

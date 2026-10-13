@@ -30,7 +30,18 @@ def entries(directory):
     return result
 
 
+def safe_path(path):
+    # Preserve fixed macOS aliases, reject repository/user-controlled redirects.
+    system_aliases = {pathlib.Path('/tmp'), pathlib.Path('/var'), pathlib.Path('/etc')}
+    absolute = path.absolute()
+    if any(p.is_symlink() for p in (absolute, *absolute.parents) if p not in system_aliases):
+        raise ValueError('symlink evidence path refused')
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == 'path':
+        safe_path(pathlib.Path(sys.argv[2]))
+        return 0
     if len(sys.argv) == 4 and sys.argv[1] == 'complete':
         path = pathlib.Path(sys.argv[2])
         digest(path)  # regular file, no leaf symlink
@@ -47,11 +58,7 @@ def main():
     mode, directory = sys.argv[1], pathlib.Path(sys.argv[2])
     if not directory.is_dir():
         return 66
-    # macOS system aliases are fixed host paths, not repository-controlled links.
-    system_aliases = {pathlib.Path('/tmp'), pathlib.Path('/var'), pathlib.Path('/etc')}
-    absolute = directory.absolute()
-    if any(p.is_symlink() for p in (absolute, *absolute.parents) if p not in system_aliases):
-        raise ValueError('symlink evidence directory refused')
+    safe_path(directory)
     manifest = directory / 'MANIFEST'
     known = entries(directory) if manifest.exists() or manifest.is_symlink() else {}
     if mode == 'add':

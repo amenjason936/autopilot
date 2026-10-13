@@ -45,6 +45,7 @@ runner_init() {
   require git perl python3 jq
   umask 077
   WORKDIR="$(cd "$1" 2>/dev/null && pwd -P)" || die 66 'workdir not found'
+  python3 "$SCRIPT_DIR/evidence.py" path "$2" || die 64 'symlink evidence path refused'
   EVIDENCE="$(resolve_path "$2")" || die 64 'invalid evidence path'
   LABEL="$3"
   [[ "$LABEL" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die 64 'invalid label'

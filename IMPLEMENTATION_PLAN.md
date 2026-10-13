@@ -32,7 +32,7 @@ No global installation, remote publication, production credentials, or database 
 
 ## Results
 
-53 Bats tests and ShellCheck pass on macOS. Supplementary review added failure
+54 Bats tests and ShellCheck pass on macOS. Supplementary review added failure
 signatures, fail-closed evidence writes, request identity, safe recovery, committed
 record-path admission and risk-based lite restrictions. Final controls, acceptance
 audit and repository delivery are tracked in VALIDATION.md. The committed validation record contains

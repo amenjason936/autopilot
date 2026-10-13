@@ -137,3 +137,13 @@ PY
   [ ! -e "$CASE/repeated-action" ]
   [ "$(cat "$EVID/interrupted.md.partial")" = interrupted ]
 }
+
+@test "committed evidence symlink cannot redirect writer outside the repository" {
+  mkdir "$CASE/outside"
+  ln -s "$CASE/outside" "$REPO/proof"
+  commit_fixture
+  run bash "$SKILL/scripts/run-gate.sh" "$REPO" "$REPO/proof/redirect.md" redirect true
+  [ "$status" -eq 64 ]
+  [ ! -e "$CASE/outside/redirect.md" ]
+  [ ! -e "$CASE/outside/MANIFEST" ]
+}

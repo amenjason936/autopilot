@@ -38,6 +38,8 @@ TARGETS = [
     ('supplement-review-policy', 'scripts/review_identity.py', "if policy['sandbox'] != 'env-clean' or policy['deny_network'] or policy['deny_paths']:", 'if False:', 'restrictive policy parks cloud dispatch', 'tests/supplements.bats'),
     ('supplement-resume', 'scripts/runner.sh', '[ "${GATE_RERUN_POLICY:-}" = safe ]', 'true', 'interrupted side effects stay parked', 'tests/supplements.bats'),
 
+    ('supplement-lite-risk', 'scripts/lite.py', "if (not path.endswith(('.md', '.rst', '.txt')) or", "if False and (not path.endswith(('.md', '.rst', '.txt')) or", 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),
+    ('author-output-symlink', 'scripts/runner.sh', 'python3 "$SCRIPT_DIR/evidence.py" path "$2"', 'true', 'committed evidence symlink cannot redirect writer', 'tests/supplements.bats'),
 ]
 
 
@@ -64,6 +66,7 @@ def main():
                                   str(evidence/(label+'.md')), label, str(target), command],
                                  env={**os.environ, 'MUTANT_FAILURE_REGEX': r'^not ok [0-9]+ ' + re.escape(test) + r'.*$'})
         selector = ('author-added script data control; model-level target unverified' if key == 'p0-6-output-data'
+                    else 'author-added evidence writer boundary regression' if key.startswith('author-')
                     else 'independent acceptance auditor target; author concretized patch' if key.startswith(('c1-', 'c3-', 'c4-'))
                     else 'independent supplemental reviewer target; author concretized patch' if key.startswith('supplement-')
                     else 'independent forward-test reviewer; author concretized patch')

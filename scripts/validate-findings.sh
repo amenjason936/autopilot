@@ -9,10 +9,13 @@
 set -uo pipefail
 
 [ $# -eq 1 ] || { echo "usage: validate-findings.sh <findings.json>" >&2; exit 64; }
+# shellcheck source=lib.sh
 . "$(cd "$(dirname "$0")" && pwd -P)/lib.sh"
 require jq
 [ -s "$1" ] || die 66 "findings file missing or empty: $1"
 
+# jq syntax intentionally contains literal dollar signs.
+# shellcheck disable=SC2016
 FILTER='
   def strings($o; $ks): all($ks[]; ($o[.] | type) == "string");
   def line($v): ($v | type) == "number" and $v == ($v | floor) and $v >= 1;

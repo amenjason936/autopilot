@@ -30,12 +30,15 @@ if [ "${1:-}" = "--prompt-only" ]; then
 fi
 [ $# -ge 4 ] || usage
 
-SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+SKILL_DIR="${AUTOPILOT_HOME:-$(cd "$(dirname "$0")/.." && pwd -P)}"
+# shellcheck source=lib.sh
 . "$SKILL_DIR/scripts/lib.sh"
-require git
+require git python3
+umask 077
 [ "$PROMPT_ONLY" -eq 1 ] || require perl jq codex
 
 REPO="$(cd "$1" 2>/dev/null && pwd -P)" || die 66 "repo not found: $1"
+disable_git_callbacks "$REPO"
 BASE="$2"
 RECORD="$3"
 OUT="$(abs_path "$4")"
@@ -70,14 +73,32 @@ inputs() {
 }
 
 LOG="${OUT%.json}.log"
-# Never let a previous round's findings pass for this one.
-rm -f "$OUT" "$LOG" "$OUT.invalid"
+# Existing review evidence is never destroyed or mistaken for a new review.
+for existing in "$OUT" "$LOG" "$OUT.invalid" "${OUT%.json}.run-record.md"; do
+  [ ! -e "$existing" ] && [ ! -L "$existing" ] || die 73 'review output exists; choose a new name'
+done
+mkdir "$OUT.lock" 2>/dev/null || die 73 'review output locked'
+WORK=
+TREE=
+cleanup() {
+  if [ -n "$TREE" ]; then git -C "$REPO" worktree remove --force "$TREE" >/dev/null 2>&1 || true; fi
+  [ -z "$WORK" ] || rm -rf "$WORK"
+  rmdir "$OUT.lock" 2>/dev/null || true
+}
+trap cleanup EXIT
+RECORD_ABS="$(resolve_path "$RECORD")"
+TOP="$(git -C "$REPO" rev-parse --show-toplevel)"
+case "$RECORD_ABS" in
+  "$TOP"/*) RECORD_REL="${RECORD_ABS#"$TOP"/}" ;;
+  *) die 64 'run record must be committed in the reviewed repository' ;;
+esac
+git -C "$REPO" cat-file -e "$HEAD_SHA:$RECORD_REL" 2>/dev/null || die 66 'run record missing at pinned head'
 
 if [ "$PROMPT_ONLY" -eq 1 ]; then
   # Snapshot the run record beside the output, as codex mode does: the live
   # one keeps changing during the review.
   SNAPSHOT="${OUT%.json}.run-record.md"
-  cp "$RECORD" "$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
+  git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" >"$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
   inputs "$REPO (its working tree may be newer than the head: read the head with \`git show $HEAD_SHA:<path>\`, or check it out in a worktree of your own)" \
     "$SNAPSHOT (snapshot taken when this review started)" \
     "write the JSON to $OUT, then run: bash $SKILL_DIR/scripts/validate-findings.sh $OUT"
@@ -86,17 +107,11 @@ fi
 
 WORK="$(make_temp_dir codex)"
 TREE="$WORK/tree"
-cleanup() {
-  git -C "$REPO" worktree remove --force "$TREE" >/dev/null 2>&1 || true
-  git -C "$REPO" worktree prune >/dev/null 2>&1 || true
-  rm -rf "$WORK"
-}
-trap cleanup EXIT
-git -C "$REPO" worktree add --quiet --detach "$TREE" "$HEAD_SHA" ||
+safe_worktree_add "$REPO" "$TREE" "$HEAD_SHA" ||
   die 70 "cannot check out $HEAD_SHA in a temporary worktree"
 
 # Snapshot the run record: the live one keeps changing during the review.
-cp "$RECORD" "$WORK/run-record.md"
+git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" >"$WORK/run-record.md"
 inputs "$TREE (a checkout of the head; the original is $REPO)" \
   "$WORK/run-record.md (snapshot taken when this review started)" \
   "your final message, as JSON" >"$WORK/prompt.md"
@@ -109,19 +124,21 @@ CODEX_ARGS=(exec --sandbox read-only --cd "$TREE" --color never
 if [ -n "$MODEL" ]; then
   CODEX_ARGS+=(-c "model=\"$MODEL\"")
 fi
-CODEX_ARGS+=(--output-schema "$SCHEMA" --output-last-message "$OUT")
+CODEX_ARGS+=(--output-schema "$SCHEMA" --output-last-message "$WORK/findings.json")
 
 set +e
-with_timeout "$TIMEOUT" codex "${CODEX_ARGS[@]}" - <"$WORK/prompt.md" >"$LOG" 2>&1
+with_timeout "$TIMEOUT" codex "${CODEX_ARGS[@]}" - <"$WORK/prompt.md" >"$WORK/raw.log" 2>&1
 STATUS=$?
+clean_output <"$WORK/raw.log" >"$LOG"
+if [ -f "$WORK/findings.json" ]; then clean_output <"$WORK/findings.json" >"$OUT"; fi
 set -e
 
 if [ "$TIMED_OUT" -eq 1 ]; then
-  rm -f "$OUT"
+  [ ! -f "$OUT" ] || mv "$OUT" "$OUT.invalid"
   die 75 "codex review timed out after ${TIMEOUT}s; log: $LOG"
 fi
 if [ "$STATUS" -ne 0 ]; then
-  rm -f "$OUT"
+  [ ! -f "$OUT" ] || mv "$OUT" "$OUT.invalid"
   echo "codex exited $STATUS; log: $LOG" >&2
   tail -20 "$LOG" >&2
   exit "$STATUS"

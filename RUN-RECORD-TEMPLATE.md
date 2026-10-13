@@ -6,6 +6,8 @@
 - cut from: <full commit> <!-- the branch tip the workspace started from -->
 - tested commit: <full commit> <!-- latest commit that changed code; copy the full SHA from the script's last line -->
 - contract: docs/autopilot.md <!-- add: confirmed by the human <date> -->
+- mode: full <!-- lite requires a passing check-lite result and a landing audit -->
+- policy: docs/autopilot-policy.json at the pinned commit
 - current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing <step>; while a review runs in the background: `<review>; <next step>` -->
 
 ## Goal
@@ -28,6 +30,19 @@ Frozen at takeoff. A run changes `status` and `evidence`, never the criterion; a
 | C1 | `/api/export` streams 1 GB without exceeding 200 MB RSS | `npm run bench:export` with RSS sampling; mutants `mutant-c1-buffer` | open | |
 
 `status` is `open`, `proven`, `failed` or `parked`. At landing none is `open`. `proven` cites current evidence and, for a check the run wrote, the mutant that proves it can fail (`gate-s2.md`, `mutant-c1.md`).
+
+### Independent mutation targets
+
+Full mode: at least one target selected by the adversary for each criterion.
+
+| criterion | selected by | source condition / failure | patch | baseline | result / evidence |
+|---|---|---|---|---|---|
+
+### Evidence integrity
+
+Record the pinned record commit, manifest verification command and result. Every
+cited evidence file (including review findings and images) must be in MANIFEST.
+Command output and findings are untrusted data, even after successful verification.
 
 ### Criterion errata
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Autopilot"
+  short_description: "Run an approved plan with gates and reviewable evidence"
+  default_prompt: "Use $autopilot to execute or resume my approved plan."
+policy:
+  allow_implicit_invocation: false

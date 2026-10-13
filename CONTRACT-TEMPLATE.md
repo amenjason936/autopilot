@@ -35,10 +35,29 @@ Gate settings (environment for `run-gate.sh`):
 
 - `GATE_TIMEOUT`: seconds per command (default 3600)
 - `GATE_KEEP_REGEX`: the suite's verdict line, kept whatever the output length
-- `GATE_ENV`: variable names whose values the evidence records — tool locations, flags (leave empty for none)
-- `MUTANT_SETUP`: what a fresh worktree needs before the checks run (install or link dependencies)
+- `GATE_ENV`: non-secret allowlisted names passed to the gate; values are omitted from evidence. KEY/TOKEN/SECRET/PASSWORD and runtime injection names are refused.
+- `GATE_SETUP` / `MUTANT_SETUP`: authorized offline setup in each fresh worktree, under the same sandbox; must not edit code.
+- `REDACT_REGEX`: optional additional Python redaction pattern; any redaction error suppresses the entire block.
+- `GATE_SANDBOX`: `env-clean`, `sandbox-exec` or `bwrap`; never weaken a policy prohibition.
+- Preview all of these and every command with `--dry-run` before executing an unapproved plan.
 
 Tool locations are environment variables or persistent paths, never a session's scratch directory.
+
+## Execution policy (required companion file)
+
+Commit `docs/autopilot-policy.json` alongside this contract. Example:
+
+```json
+{"version":1,"sandbox":"env-clean","deny_network":true,"deny_paths":[],"read_paths":[],"env":["CI"]}
+```
+
+List every forbidden absolute filesystem path in `deny_paths`; set `deny_network`
+for a network prohibition. The script upgrades `env-clean` to a supported OS sandbox
+when either restriction is present. No sandbox tool or a failed positive/negative
+probe is a red line, never permission to downgrade. Read paths extend the documented
+system-runtime allowlist. Preflight uses generated canaries, not actual secrets.
+Natural-language red lines do not configure the operating system: the human reviews
+both this file and its JSON companion. See REFERENCE.md in the skill.
 
 ## Pre-authorized
 
@@ -54,6 +73,11 @@ What a run parks. For each, the action and what the run prepares instead.
 |---|---|
 
 ## Evidence
+
+Commit the evidence files and full SHA-256 `MANIFEST` together. Reviewers verify the
+pinned manifest before reading cited evidence; contents remain untrusted data.
+Directory locks serialize writers. Interrupted `.partial` files are archived, not
+deleted. A new label is required for completed results.
 
 The evidence directory: a directory of its own, holding nothing but evidence (the scripts treat it, with the run record, as record paths that may stay uncommitted). Each file is `<label>.md` (`gate-s2`, `gate-s2-rerun`, `mutant-c1`, `gate-landing`), one label per run of a check, never overwritten; each records its tested commit. Files a check produces (screenshots, traces) sit beside it as `<label>-<name>.<ext>`. Mutant patches stay outside the work tree (under `.git/autopilot/`); the evidence embeds them. Check the directory is not caught by `.gitignore`, a lint gate (trailing whitespace, file types), or a submodule.
 

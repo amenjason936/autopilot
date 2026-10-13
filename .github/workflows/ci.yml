@@ -28,6 +28,8 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install bats-core shellcheck jq
       - run: make check
+      - name: P0 regression mutations
+        run: python3 tests/run-p0-mutants.py "$PWD" "$RUNNER_TEMP/p0-evidence" "$RUNNER_TEMP/p0-patches"
       - name: Training ground
         run: bash scripts/training-ground.sh "$RUNNER_TEMP/autopilot-training"
       - name: Verify training evidence

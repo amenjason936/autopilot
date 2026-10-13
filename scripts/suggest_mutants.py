@@ -89,7 +89,8 @@ def main():
                             compile(''.join(mutant), file, 'exec')
                         except (SyntaxError, ValueError):
                             continue
-                    patch = ''.join(difflib.unified_diff(lines, mutant, fromfile='a/' + file, tofile='b/' + file))
+                    delta = difflib.unified_diff(lines, mutant, fromfile='a/' + file, tofile='b/' + file)
+                    patch = ''.join(line if line.endswith('\n') else line + '\n\\ No newline at end of file\n' for line in delta)
                     if patch:
                         candidates.append((file, number, kind, patch))
     except (subprocess.CalledProcessError, UnicodeError, ValueError, IndexError):

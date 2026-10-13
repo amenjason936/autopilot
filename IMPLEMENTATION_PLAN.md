@@ -13,7 +13,7 @@ No global installation, remote publication, production credentials, or database 
 3. **Packaging and documentation — complete.** Short entrypoint, reference,
    contract/record templates, portable installation, complete example, MIT license,
    version and changelog.
-4. **Validation and review — in progress.** Bats, ShellCheck, Linux/macOS CI, fixed
+4. **Validation and review — locally complete; external acceptance parked.** Bats, ShellCheck, Linux/macOS CI, fixed
    training ground, P0 regression mutations, independent forward testing, and a
    candid acceptance report. Sync tested changes into the requested repository.
 
@@ -29,3 +29,10 @@ No global installation, remote publication, production credentials, or database 
   until those reviewers/CI actually run. Do not invent the plan's 9/10 rating.
 - Temporary test repositories can have fixture commits; final code commits/tags
   require the prescribed checks to pass. Existing user files are not deleted.
+
+## Results
+
+42 Bats tests and ShellCheck pass on macOS. The committed validation record contains
+the self-run machine gate, training-ground archive, P0 negative controls and
+independent-review fixes. Linux execution and external four-party scores require
+the configured CI/external reviewers; those are not counted as passed.

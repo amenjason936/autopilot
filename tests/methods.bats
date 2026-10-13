@@ -92,3 +92,17 @@ MOCK
   ! grep -q sk-syntheticLogSecret "$CASE/review.log"
   [ ! -d "$CASE/review.json.lock" ]
 }
+
+@test "suggested patches preserve files without a final newline" {
+  printf 'value = 1' >"$REPO/end.py"
+  commit_fixture
+  base="$(git -C "$REPO" rev-parse HEAD)"
+  printf 'value = 2' >"$REPO/end.py"
+  commit_fixture
+  run bash "$SKILL/scripts/suggest-mutants.sh" "$REPO" "$base" HEAD "$CASE/patches"
+  [ "$status" -eq 0 ]
+  for patch in "$CASE/patches/"*.patch; do
+    run git -C "$REPO" apply --check "$patch"
+    [ "$status" -eq 0 ]
+  done
+}

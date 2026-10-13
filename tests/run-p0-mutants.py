@@ -18,6 +18,7 @@ TARGETS = [
     ('p0-3-environment', 'scripts/policy.py', "re.search(r'KEY|TOKEN|SECRET|PASSWORD', upper)", 'False', 'secret and injection environment', 'tests/gate.bats'),
     ('p0-4-sandbox', 'scripts/policy.py', "if (network or denied) and sandbox == 'env-clean':", 'if False:', 'contract policy forces', 'tests/policy.bats'),
     ('p0-4-git-callback', 'scripts/lib.sh', 'command git -c core.fsmonitor=false -c core.hooksPath=/dev/null', 'command git -c core.hooksPath=/dev/null', 'dry-run never executes repository fsmonitor', 'tests/gate.bats'),
+    ('p0-4-conditional-filter', 'scripts/lib.sh', 'worktree add --quiet --no-checkout --detach', 'worktree add --quiet --detach', 'worktree-conditional filters cannot execute', 'tests/gate.bats'),
     ('p0-5-preview', 'scripts/run-gate.sh', 'if [ "$DRY_RUN" -eq 1 ]; then', 'if [ "$DRY_RUN" -eq 9 ]; then', 'dry-run prints setup commands', 'tests/gate.bats'),
     ('p0-6-output-data', 'scripts/runner.sh', 'tail -n "$keep" "$WORK/clean-output"', '/bin/bash "$WORK/clean-output"; tail -n "$keep" "$WORK/clean-output"', 'untrusted output is recorded', 'tests/gate.bats'),
     ('p0-7-lock', 'scripts/runner.sh', "|| die 73 'evidence directory locked; inspect owner before recovering a stale lock'", '|| true', 'directory lock rejects', 'tests/gate.bats'),

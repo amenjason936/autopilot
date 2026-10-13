@@ -14,3 +14,14 @@ The record-only VALIDATION.md is the live stage tracker so updating completion
 status does not change the frozen implementation under evaluation.
 
 Do not invent a 9/10 rating or four-party approval. Real platform/model results must be distinguished from simulations and unavailable environments. Preserve original user files and rc.1 tag.
+
+## Multi-host installation and upstream delivery
+
+1. Inspect active host paths, current copies and upstream permissions — complete.
+2. Add full-package installer, explicit ccmr target and rollback receipts — complete.
+3. Validate installer and replace all four authorized global installations — five focused installer tests pass; full-suite and installation receipts track completion.
+4. Publish a fork branch and pull request to the upstream repository — use the existing upstream README concepts with current portable paths; publish after verified installation.
+
+This follow-up is explicitly authorized by the user, including global replacement
+and GitHub publication. Backups preserve previous folders and symlink targets;
+no unrelated settings, credentials, skills or host launchers are changed.

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — multi-host installation
+
+- Add a full-package installer for Codex, Claude Code, ZCode shared user skills
+  and ccmr (`~/.claude-gateway/skills`), with explicit replacement, retained old
+  copies/symlink targets, per-host manual-invocation metadata and SHA-256 receipts.
+- Install from committed Git bytes; refuse dirty tracked source and omit untracked
+  files and Git metadata. Host account, routing and launcher settings stay intact.
+
 ## 0.2.0-rc.2 — 2026-10-13
 
 - Share selected policy identity across gates, review dispatch and resume (F1).

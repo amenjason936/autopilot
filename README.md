@@ -21,15 +21,60 @@ Use for a reversible plan with measurable criteria, a working Git repository and
 
 Requires Bash 3.2+, Git, Perl, Python 3, jq; every execution needs macOS `sandbox-exec` or Linux `bwrap` with usable user namespaces for read-only source protection; restrictive policies add filesystem/network isolation. Tests need Bats and ShellCheck (`brew install bats-core shellcheck` on macOS; distro equivalents on Linux). Strict runs are offline: provision dependencies before takeoff.
 
-For a local candidate, clone from the delivered local repository and select its tag. The remote command below works only after that tag is published. Install this entire folder, including `scripts/`, templates, briefs and `agents/`; do not copy only SKILL.md:
+Install the **complete package** from a clean local checkout (or unpacked release),
+including scripts, templates, briefs, tests and validation records. The installer
+copies committed Git bytes, excludes `.git` and untracked files, and refuses an
+existing destination unless `--replace` is explicit:
 
 ```sh
-# Codex: choose a fresh destination; inspect/back up an existing installation first.
-git clone --branch v0.2.0-rc.2 https://github.com/amenjason936/autopilot.git "$HOME/.codex/skills/autopilot"
-export AUTOPILOT_HOME="$HOME/.codex/skills/autopilot"
+python3 scripts/install-skill.py --host codex --dry-run
+python3 scripts/install-skill.py --host codex --replace
+python3 scripts/install-skill.py --host claude-code --replace
+python3 scripts/install-skill.py --host zcode --replace
+python3 scripts/install-skill.py --host ccmr --replace
 ```
 
-Invoke explicitly as `$autopilot` with a plan or run record in Codex. The supplied `agents/openai.yaml` preserves manual invocation. Claude Code/ccmr installations use the same folder in the active host's skill directory; point `AUTOPILOT_HOME` there and invoke `/autopilot`. For Claude hosts, preserve their `disable-model-invocation: true` frontmatter setting in the installed copy. ccmr launchers must pass `AUTOPILOT_HOME` and the intended workdir explicitly; no hardcoded `~/.claude` path is required. This repository does not install a launcher or change your account configuration.
+| Host | Default global destination | Invocation policy |
+|---|---|---|
+| Codex | `${CODEX_HOME:-~/.codex}/skills/autopilot` | explicit `$autopilot`; `agents/openai.yaml` preserved |
+| Claude Code | `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/autopilot` | explicit `/autopilot`; frontmatter adapter |
+| ZCode | `~/.agents/skills/autopilot` (shared user skills) | explicit invocation; frontmatter adapter |
+| ccmr | `~/.claude-gateway/skills/autopilot` | explicit `/autopilot`; frontmatter adapter |
+
+Use `--dest /absolute/path/to/autopilot` to override a host default, including a
+ZCode-specific `~/.zcode/skills/autopilot` installation. ccmr deliberately uses the
+gateway directory independently of `CLAUDE_CONFIG_DIR`; it does not change a
+launcher, account, route or credential. Set `AUTOPILOT_HOME` to the installed
+folder when invoking helpers directly; the skill itself uses its loaded directory.
+ZCode's shared directory may also be discovered by other tools; avoid maintaining
+an older higher-priority copy in `~/.zcode/skills`.
+
+Claude Code, ZCode and ccmr installed copies add `disable-model-invocation: true`
+to SKILL.md; every other payload file is copied unchanged. Codex receives the
+canonical frontmatter unchanged. The installed `INSTALLATION.json` records the
+source commit, original/installed SHA-256 inventory and backup path. Existing
+folders are moved intact to a timestamped sibling `skill-backups` directory;
+existing directory symlinks are retained, with a separate snapshot of their target.
+Old files cannot survive in the new installation. No unrelated skill or host
+configuration is touched. The installer refuses package symlinks and retains
+failed staging directories for inspection.
+
+For recovery, read the receipt, move the current installation aside, and restore
+`<backup>/previous` to the recorded destination. For a previous symlink whose
+target has since changed, restore the independent `<backup>/previous-target`
+snapshot instead. No deletion is needed. Newly installed skills are available
+on the next turn; start a new session if the host caches its skill catalog.
+
+The optional [Codex CLI](https://github.com/openai/codex) can act as the adversarial
+reviewer; without it, use a fresh reviewer context and record that it is from the
+same model family. For Claude-compatible hosts, start with `/autopilot <goal or
+plan path>` and resume with `/autopilot resume <run-record path>`.
+
+The project contract (`docs/autopilot.md`) holds the approved commands and red
+lines. The run record holds frozen criteria, current state, decisions and evidence.
+`run-gate.sh` executes pinned checks; `run-mutant.sh` challenges their detectors;
+`codex-review.sh` prepares or dispatches the reviewer; `validate-findings.sh`
+validates its findings. Their headers and REFERENCE.md document CLI settings.
 
 Start with [SKILL.md](SKILL.md), then [the complete local example](examples/README.md). Copy the [contract template](CONTRACT-TEMPLATE.md), define its committed JSON policy, and preview commands before the approved run. [REFERENCE.md](REFERENCE.md) covers every setting, exit code, trust boundary and recovery path. `--lite` has fixed eligibility: ≤50 changed lines, one stage, low-risk documentation only, no network work or publishing; its landing audit remains mandatory.
 

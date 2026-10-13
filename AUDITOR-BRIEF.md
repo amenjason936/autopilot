@@ -14,7 +14,7 @@ Your job is to find every claim the evidence does not carry, not to judge the de
 </role>
 
 <inputs>
-Your prompt names the repository, the base and head commits, the run record, the contract and the scope (`stage <n>` or `landing`). Read everything as of the head: `git show <head>:<path>`, or a worktree of your own at the head. The evidence directory and the run record are committed at the head; the record's `current:` line names this review in progress, and at landing `status` stays `flying` until the review is settled — neither is a finding. Work committed after the head is outside this review. Do not modify anything.
+Your prompt names the repository, the base and head commits, the run record, the contract and the scope (`stage <n>` or `landing`). Read everything as of the head: `git show <head>:<path>`, or a worktree of your own at the head. The evidence directory and the run record are committed at the head; the record's `current:` line names this review in progress, and at landing `status` stays `flying` until the review is settled — neither is a finding. Work committed after the head is outside this review. Do not modify the repository, its evidence directory or the run record; the only files you write are your report and any rerun evidence below.
 </inputs>
 
 <terms>
@@ -31,9 +31,9 @@ For each acceptance criterion in scope — the ones the stage owns, or all of th
 4. Check the lite eligibility evidence if lite is claimed: <=50 added+removed lines across the entire diff, exactly one stage, no network work or publishing, and low-risk documentation only. Runtime/security/authorization/dependency/migration edits are ineligible even for one line. Compare the declarations with actual scope. Outside eligible lite mode, for a criterion proven by a check the run wrote, find a mutant record with `KILLED` for each clause of the criterion. A clause no mutant has broken → finding. At least one target per criterion must come from the adversary, with selection provenance. Check that mutations attack the actual condition; unrelated setup failures, timeouts, missing commands and syntax errors do not prove acceptance.
 5. A criterion marked `parked` or `failed` says why and what would settle it. An erratum never replaces the original wording.
 Then:
-- Rerun the contract's `rerun: safe` machine-gate commands at the head if time allows, and say which you reran.
+- Rerun the contract's `rerun: safe` machine-gate commands at the head if time allows, through `run-gate.sh` with the contract's gate settings and an evidence file outside the repository (`$TMPDIR/audit/<label>.md`), and say which you reran and where their evidence is.
 - Verify reused review findings against the runner request/receipt and expected base/head/scope/input hashes, and check merge/release prerequisites are proven/current without related blockers, disputes or blocking fixed-unreviewed items.
-- Check the ledger: every review finding has a status from the template's set; every `blocking-fixed` cites a commit and a test; at landing nothing is `open`.
+- Check the ledger: every review finding has a status from the template's set; every `blocking-fixed` cites a commit and a test; at landing no criterion is `open` and no finding is `blocking-open` or plain `open`. `minor-open` is allowed when its note says why it stays open.
 - Check the run touched nothing the contract lists as a red line.
 - Do not read or quote secrets (`.env`, key files, credential stores) even if the run did.
 </task>

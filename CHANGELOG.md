@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — findings from the sandboxed token-watcher end-to-end run
+
+- Ask the adversary for mutant targets before the first recorded mutant wave,
+  and explore with scratch evidence outside the repository, so a detector fix no
+  longer forces every recorded mutant to rerun.
+- `suggest-mutants.sh` masks string/template literals and line comments instead
+  of skipping any line with a quote, and adds JavaScript/TypeScript (and C)
+  guard, boolean, strict-equality and empty-return candidates.
+- `evidence.py register DIR SOURCE [NAME]` registers review findings, requests,
+  receipts and other files in one step: lock, redact, write, MANIFEST, unlock.
+- Helpers that import siblings no longer write `scripts/__pycache__`, which a
+  concurrent gate read as tampering (#2).
+- Redaction leaves switch values (`TOKENMETER_NO_KEYCHAIN=1`, `KEY_ROTATION=off`)
+  alone; `verify-evidence.sh` explains a path given instead of a file name.
+- Evidence says `timed out: no|yes (after Ns)` instead of `timeout=0|1`.
+- The auditor reruns `rerun: safe` gates into evidence outside the repository;
+  `minor-open` is allowed at landing with a reason; `landed` closes a run whose
+  landing steps are parked; the missing-CLI fallback reviewer may inspect the
+  pinned snapshot read-only; `current:` and the resume table share one vocabulary;
+  `validate-findings.sh` documents its seven-argument form.
+
 ## Unreleased — fallback integrity and sandbox-aware tests
 
 - Detect persistent changes to every helper and frozen execution control before

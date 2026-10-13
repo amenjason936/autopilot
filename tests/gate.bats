@@ -84,7 +84,7 @@ load test_helper
   export GATE_TIMEOUT=1
   run gate timeout "(sleep 3; touch '$CASE/orphan') & wait"
   [ "$status" -eq 1 ]
-  grep -q 'timeout=1' "$EVID/timeout.md"
+  grep -q 'timed out: yes' "$EVID/timeout.md"
   sleep 3
   [ ! -e "$CASE/orphan" ]
 }

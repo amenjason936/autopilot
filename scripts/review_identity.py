@@ -6,7 +6,11 @@ import pathlib
 import subprocess
 import sys
 import uuid
-from policy import selected_policy
+
+# The runner hashes scripts/ before and after every command: importing a
+# sibling helper must never write __pycache__ there (issue #2).
+sys.dont_write_bytecode = True
+from policy import selected_policy  # noqa: E402
 
 
 def digest(data):

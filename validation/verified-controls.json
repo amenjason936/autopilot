@@ -1,0 +1,218 @@
+[
+  {
+    "label": "verified-p0-1-worktree",
+    "target": "scripts/runner.sh",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-1-worktree.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-2-manifest",
+    "target": "scripts/evidence.py",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-2-manifest.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-3-redaction",
+    "target": "scripts/redact.py",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-3-redaction.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-3-environment",
+    "target": "scripts/policy.py",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-3-environment.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-4-sandbox",
+    "target": "scripts/policy.py",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-4-sandbox.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-4-git-callback",
+    "target": "scripts/lib.sh",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-4-git-callback.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-4-conditional-filter",
+    "target": "scripts/lib.sh",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-4-conditional-filter.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-5-preview",
+    "target": "scripts/run-gate.sh",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-5-preview.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-6-output-data",
+    "target": "scripts/runner.sh",
+    "selected_by": "author-added script data control; model-level target unverified",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-6-output-data.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-7-lock",
+    "target": "scripts/runner.sh",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-7-lock.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-p0-7-partial",
+    "target": "scripts/runner.sh",
+    "selected_by": "independent forward-test reviewer; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-p0-7-partial.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-c1-env-inheritance",
+    "target": "scripts/runner.sh",
+    "selected_by": "independent acceptance auditor target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-c1-env-inheritance.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-c1-probe-enforcement",
+    "target": "scripts/runner.sh",
+    "selected_by": "independent acceptance auditor target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-c1-probe-enforcement.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-c3-diff-only",
+    "target": "scripts/suggest_mutants.py",
+    "selected_by": "independent acceptance auditor target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-c3-diff-only.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-c3-lite-boundary",
+    "target": "scripts/lite.py",
+    "selected_by": "independent acceptance auditor target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-c3-lite-boundary.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-c4-portability",
+    "target": "scripts/training-ground.sh",
+    "selected_by": "independent acceptance auditor target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-c4-portability.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-supplement-evidence-write",
+    "target": "scripts/lib.sh",
+    "selected_by": "independent supplemental reviewer target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-supplement-evidence-write.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-supplement-failure-signature",
+    "target": "scripts/run-mutant.sh",
+    "selected_by": "independent supplemental reviewer target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-supplement-failure-signature.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-supplement-record-scope",
+    "target": "scripts/runner.sh",
+    "selected_by": "independent supplemental reviewer target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-supplement-record-scope.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-supplement-review-identity",
+    "target": "scripts/review_identity.py",
+    "selected_by": "independent supplemental reviewer target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-supplement-review-identity.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-supplement-review-policy",
+    "target": "scripts/review_identity.py",
+    "selected_by": "independent supplemental reviewer target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-supplement-review-policy.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-supplement-resume",
+    "target": "scripts/runner.sh",
+    "selected_by": "independent supplemental reviewer target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-supplement-resume.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-supplement-lite-risk",
+    "target": "scripts/lite.py",
+    "selected_by": "independent supplemental reviewer target; author concretized patch",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-supplement-lite-risk.md",
+    "result": "KILLED"
+  },
+  {
+    "label": "verified-author-output-symlink",
+    "target": "scripts/runner.sh",
+    "selected_by": "author-added evidence writer boundary regression",
+    "head": "67289c7d8dcf7fa114b44e843aa795eb147c291e",
+    "exit": 0,
+    "evidence": "verified-author-output-symlink.md",
+    "result": "KILLED"
+  }
+]

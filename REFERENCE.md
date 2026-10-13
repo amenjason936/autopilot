@@ -277,8 +277,9 @@ files), changed files in full up to `REVIEW_API_FILE_CHARS` (larger ones as a
 diff with 60 lines of context), the contract, the effective policy (with a note
 that a network or path ban upgrades `env-clean` to the OS sandbox), the record,
 and with `--evidence DIR` the MANIFEST, `verify-evidence.sh` output for every
-file and the evidence files the record cites; the rest are listed by name
-(`--all-evidence` sends them all). The whole prompt passes through the redactor
+file and the evidence files the record cites, mutant evidence condensed to its
+header, patch and result; the rest are listed by name (`--all-evidence` sends
+every file in full). The whole prompt passes through the redactor
 before upload; `<out>.supplied.txt` lists each supplied file with its sha256,
 and `<out>.log.txt` the model, usage and finish reason (`.txt`, so a `*.log`
 ignore rule never hides it). The model gets no tools, so `limits` must start with

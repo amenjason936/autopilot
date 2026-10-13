@@ -130,3 +130,24 @@ PY
   [ ! -e "$CASE/out/r6.json" ]
   grep -q '"max_tokens": 131072' "$CASE/request.json"
 }
+
+@test "api review condenses cited mutant evidence to header, patch and result" {
+  review_fixture
+  evidence_fixture
+  { printf '# Mutant — mutant-c1\n\n- tested commit: %040d\n- mutated files: value\n\n```diff\n-safe\n+PATCH-LINE\n```\n## baseline (unpatched)\n\n' 0
+    for i in $(seq 200); do printf 'NOISY-TEST-OUTPUT %s\n' "$i"; done
+    printf -- '- result: KILLED\n'; } >"$REPO/docs/ev/mutant-c1.md"
+  (cd "$REPO/docs/ev" && python3 -c 'import hashlib,sys; [print(hashlib.sha256(open(n,"rb").read()).hexdigest()+"  "+n) for n in sys.argv[1:]]' gate-s1.md mutant-old.md mutant-c1.md >MANIFEST)
+  printf 'record cites gate-s1 and mutant-c1\n' >"$REPO/docs/run.md"
+  commit_fixture
+  printf '%s' '{"verdict":"approve","summary":"ok","findings":[],"limits":"snapshot-only; no command reproduction; no OS sandbox; reviewer: stub via API"}' >"$CASE/reply.json"
+  start_stub
+  run python3 "$SKILL/scripts/api-review.py" --evidence docs/ev "$REPO" HEAD~3 "$REPO/docs/run.md" "$CASE/out/r7.json"
+  [ "$status" -eq 0 ]
+  python3 - "$CASE/request.json" <<'PY'
+import json, sys
+prompt = json.load(open(sys.argv[1]))['messages'][0]['content']
+assert '+PATCH-LINE' in prompt and '- result: KILLED' in prompt, 'ASSERT_VERDICT_KEPT'
+assert 'NOISY-TEST-OUTPUT' not in prompt, 'ASSERT_OUTPUT_CONDENSED'
+PY
+}

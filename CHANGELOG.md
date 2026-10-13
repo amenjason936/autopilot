@@ -14,7 +14,9 @@ review snapshot size.
   exit 73. On CardiacTrim's change: 501 candidates → 130.
 - `api-review.py` sends evidence once: record paths are excluded from the code
   diff, only the evidence the record cites is sent (plus MANIFEST and the
-  verification of every file), and large changed files go as wide diff context.
+  verification of every file), mutant evidence is condensed to header, patch and
+  result, and large changed files go as wide diff context. Landing snapshots of
+  the two runs: 851k → 320k and 1.59M → 453k characters.
   It sizes the snapshot before writing anything, sets `max_tokens`
   (`REVIEW_API_MAX_TOKENS`, default 131072), names a reply cut off at the
   output limit, explains the `env-clean` → OS sandbox upgrade to the reviewer,

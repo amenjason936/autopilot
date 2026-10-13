@@ -14,7 +14,8 @@ record and evidence are supplied as files instead), changed files in full up
 to REVIEW_API_FILE_CHARS (larger ones as wider diff context), the contract,
 the effective execution policy, the run record, the evidence MANIFEST with
 verify-evidence.sh output for every file, and the evidence files the run
-record cites (--all-evidence: every evidence file).
+record cites, mutant evidence condensed to header, patch and result
+(--all-evidence: every evidence file in full).
 
 Uploading code is a data transfer: set REVIEW_API_UPLOAD=approved only when the
 contract approves this reviewer, model and cloud processing.
@@ -167,12 +168,26 @@ def snapshot(repo, base, head, record, evidence, all_evidence, policy):
             if all_evidence or name in cited or re.search(r'(?<![\w.-])' + re.escape(stem) + r'(?![\w-])', cited):
                 body = text_at(repo, head, f'{evidence}/{name}')
                 if body is not None:
-                    add(f'evidence {evidence}/{name} at head', body, f'{evidence}/{name}')
+                    short = body if all_evidence else condensed(body)
+                    title = f'evidence {evidence}/{name} at head' + (' (condensed mutant)' if short is not body else '')
+                    add(title, short, f'{evidence}/{name}')
             else:
                 omitted.append(name)
         if omitted:
             add('evidence not supplied (not cited by the run record; hashes are in MANIFEST above)', '\n'.join(omitted))
     return sections, supplied
+
+
+def condensed(text):
+    """A mutant's verdict without its test output: header, patch and result."""
+    if not text.startswith('# Mutant'):
+        return text
+    keep = [line for line in text.split('\n## ', 1)[0].splitlines()
+            if not line.startswith(('- helper ', '- policy: ', '- recorded by', '- frozen controls'))]
+    patch = re.search(r'```diff\n.*?\n```', text, re.S)
+    tail = [line for line in text.splitlines()[-12:] if line.startswith('- ')]
+    return '\n'.join(keep + ([patch[0]] if patch else []) +
+                      ['[test output omitted; the full file is hashed in MANIFEST and verified above]'] + tail)
 
 
 PREFACE = """You are the snapshot-only adversary for an autopilot run, from a different model

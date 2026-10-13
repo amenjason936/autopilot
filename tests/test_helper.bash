@@ -16,6 +16,14 @@ setup() {
   git -C "$REPO" commit -qm fixture
   unset GATE_ENV GATE_POLICY GATE_SANDBOX GATE_SETUP MUTANT_SETUP REDACT_REGEX
   unset AUTOPILOT_RECORD AUTOPILOT_BASE AUTOPILOT_RUN_CONFIG MUTANT_FAILURE_REGEX MUTANT_FAILURE_EXIT GATE_RERUN_POLICY
+  pin_helpers
+}
+
+# Tests pin the helpers as a run does at takeoff, so a work-in-progress
+# checkout of the skill can still run them. Trust-reference tests unset it.
+pin_helpers() {
+  AUTOPILOT_HELPER_PIN="$(python3 -I -S "$SKILL/scripts/integrity.py" "$SKILL/scripts")"
+  export AUTOPILOT_HELPER_PIN
 }
 
 gate() { bash "$SKILL/scripts/run-gate.sh" "$REPO" "$EVID/$1.md" "$1" "${@:2}"; }
@@ -38,6 +46,7 @@ isolate_runner() {
   cp -R "$SKILL/scripts" "$CASE/skill-copy/"
   SKILL="$CASE/skill-copy"
   export SKILL
+  pin_helpers
 }
 
 unavailable_backend() {

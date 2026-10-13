@@ -50,6 +50,22 @@ a fresh tree or an applied mutant snapshot, after checking the preceding state.
 Generate caches/output outside the helper directory; changing its contents during
 a run is an integrity failure, including a concurrent update by another process.
 
+Across invocations, `runner_init` compares the on-disk inventory with a trusted
+reference before anything runs, so a change persisted by an aborted gate cannot
+become the next gate's baseline (issue #3). The reference is, in order:
+`AUTOPILOT_HELPER_PIN` (the inventory sha256 that `run-gate.sh --dry-run` prints
+at takeoff, recorded in the run record and exported for every gate); a clean Git
+checkout of the skill (`git status` on `scripts/`, untracked files included); the
+`installed_sha256` inventory in `INSTALLATION.json`. Without any of them the
+runner refuses to start. Each refusal exits **70** and names the changed files and
+how to restore them. Evidence records the reference used (`helper reference:`).
+A tamper that also rewrites the reference (commits to the skill checkout, edits
+the receipt, changes the exported pin) is outside this check.
+
+A gate aborted this way leaves `<label>.md.partial`; rerunning that label exits
+**76**. Use a new label, or set `GATE_RERUN_POLICY=safe` once the commands are
+known to be rerun-safe.
+
 This is endpoint integrity under a trusted initial runtime, **not** OS isolation.
 Transient write/restore, a process racing the checks, or compromise of the parent
 process/interpreter are outside this guarantee. Restrictive policies still require
@@ -216,6 +232,29 @@ landing auditor may review a prepared, sanitized, pinned snapshot as evidence on
 - If approved data access, independent context or required evidence is unavailable,
   park that review and name the missing prerequisite. A human reviewing the same
   local pinned snapshot is an alternative that requires no cloud transfer.
+
+### Cloud model reviewer (`api-review.py`)
+
+`api-review.py [--scope SCOPE] [--evidence DIR] REPO BASE RECORD NEW-OUTPUT [FOCUS...]`
+automates this path for an OpenAI-compatible chat API, for example DeepSeek
+(`REVIEW_API_MODEL=deepseek-flash`, the default). It calls `codex-review.sh
+--prompt-only` to create the request, then supplies the pinned `git log`, diff,
+changed files, contract, policy, record and (with `--evidence`) every evidence
+file plus `verify-evidence.sh` output on that snapshot. The whole prompt passes
+through the redactor before upload; `<out>.supplied.txt` lists each supplied file
+with its sha256. The model gets no tools, so `limits` must start with
+`snapshot-only; no command reproduction; no OS sandbox; reviewer: <model> via API`.
+A reply that is not valid findings is kept as `<out>.invalid`; a valid one is
+sealed, and resume validates it like any other review.
+
+It refuses (exit 77) unless `REVIEW_API_UPLOAD=approved`: set it only when the
+contract names this reviewer, model and cloud processing. The key comes from the
+variable named by `REVIEW_API_KEY_ENV` (default `DEEPSEEK_API_KEY`), or that one
+variable in `REVIEW_API_ENV_FILE`; it is never written to disk or evidence.
+Other settings: `REVIEW_API_BASE` (default `https://api.deepseek.com`),
+`REVIEW_API_EFFORT=high`, `REVIEW_API_TIMEOUT=1800`, `REVIEW_API_MAX_CHARS=600000`.
+A different model family is the point: record it as the reviewer in the ledger
+(`deepseek-flash`), not as `codex` or a same-family fallback.
 
 The CLI's restrictive-policy refusal remains: its autonomous tool boundary cannot
 express the full execution policy. This documented fallback does not bypass it.

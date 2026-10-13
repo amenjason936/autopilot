@@ -71,7 +71,7 @@ plan path>` and resume with `/autopilot resume <run-record path>`.
 The project contract (`docs/autopilot.md`) holds the approved commands and red
 lines. The run record holds frozen criteria, current state, decisions and evidence.
 `run-gate.sh` executes pinned checks; `run-mutant.sh` challenges their detectors;
-`codex-review.sh` prepares or dispatches the reviewer; `validate-findings.sh`
+`codex-review.sh` prepares or dispatches the reviewer; `api-review.py` runs a snapshot-only review by a cloud model such as DeepSeek; `validate-findings.sh`
 validates its findings. Their headers and REFERENCE.md document CLI settings.
 
 **Breaking migration:** existing contracts need a committed JSON policy; gates use fresh worktrees without untracked dependencies. Follow [the migration and offline setup guide](REFERENCE.md#migrating-an-existing-project) before upgrading an existing run.

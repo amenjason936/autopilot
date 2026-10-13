@@ -8,6 +8,7 @@
 - contract: docs/autopilot.md <!-- add: confirmed by the human <date> -->
 - mode: full <!-- lite requires a passing check-lite result and a landing audit -->
 - policy: docs/autopilot-policy.json at the pinned commit
+- helper pin: <sha256> <!-- `helper inventory sha256` from the takeoff dry run; export as AUTOPILOT_HELPER_PIN for every gate -->
 - current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> mutant <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing preparation | landing review r<k> | landing action <step> | landed — parked <P ids>; while a review runs in the background: `<review>; <next step>` -->
 
 ## Goal

@@ -1,10 +1,13 @@
+# shellcheck shell=bash
+# Public status variables are consumed by scripts that source this library.
+# shellcheck disable=SC2034
 # Shared helpers for the autopilot scripts. Sourced, not run.
 # Portable across GNU/Linux and macOS (bash 3.2, BSD userland).
 
 die() {
   local status="$1"
   shift
-  echo "$*" >&2
+  printf "%s\n" "$*" | clean_output >&2
   exit "$status"
 }
 
@@ -40,9 +43,9 @@ abs_path() {
 
 sha256_of() {
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | cut -c1-16
+    sha256sum "$1" | awk '{print $1}'
   else
-    shasum -a 256 "$1" | cut -c1-16
+    shasum -a 256 "$1" | awk '{print $1}'
   fi
 }
 
@@ -68,7 +71,7 @@ with_timeout() {
     my $stop = sub {
       my $code = shift;
       kill "TERM", -$pid;
-      for (1 .. 50) {
+      for (1 .. 5) {
         waitpid($pid, WNOHANG);
         last unless kill 0, -$pid;
         select(undef, undef, undef, 0.1);
@@ -88,8 +91,7 @@ with_timeout() {
     waitpid($pid, 0);
     my $s = $?;
     alarm 0;
-    kill "TERM", -$pid;    # stragglers the command left in the background
-    exit($s & 127 ? 128 + ($s & 127) : $s >> 8);
+    $stop->($s & 127 ? 128 + ($s & 127) : $s >> 8);
   ' "$limit" "$@" <&0 &
   WT_PID=$!
   wait "$WT_PID"
@@ -116,15 +118,27 @@ trap 'on_signal 130' INT
 trap 'on_signal 143' TERM
 trap 'on_signal 129' HUP
 
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+# Every untrusted string (commands, patches, logs, errors) uses this boundary.
+# Buffering in the helper means an invalid custom regex never emits raw input.
+redact() {
+  local result
+  if ! result="$(python3 "$LIB_DIR/redact.py" 2>/dev/null)"; then
+    printf '<redacted>\n'
+    return 0
+  fi
+  printf '%s\n' "$result"
+}
+
 strip_colour() {
   sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g'
 }
 
-# Plain-text output block body: no colour, no trailing spaces, and always
-# newline-terminated so a closing fence lands on its own line.
-clean_output() {
-  tr -d '\000' | strip_colour | sed -E 's/[[:space:]]+$//' | awk 1
-}
+clean_output() { redact; }
+
+# Resolve without mkdir: dry-run must have no filesystem side effects.
+resolve_path() { python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
 
 # record_specs <top> <path>...: sets RECORD_SPECS to pathspecs that hide the
 # run's record paths (evidence directory, run record) from git, and
@@ -163,4 +177,32 @@ tested_commit() {
   sha="$(cd "$1" && git_code log -1 --format=%H HEAD)" || return 1
   [ -n "$sha" ] || sha="$(git -C "$1" rev-parse --verify HEAD)"
   printf '%s\n' "$sha"
+}
+
+# Repository configuration is data, not authorization to run host callbacks.
+GIT_CALLBACK_ARGS=()
+disable_git_callbacks() {
+  local key
+  # Retain the union of filters seen in original and linked-worktree configs.
+  while IFS= read -r -d '' key; do
+    [ -n "$key" ] || continue
+    case "$key" in
+      *.required) GIT_CALLBACK_ARGS+=(-c "$key=false") ;;
+      *) GIT_CALLBACK_ARGS+=(-c "$key=") ;;
+    esac
+  done < <(command git -C "$1" config -z --name-only --get-regexp '^filter\..*\.(smudge|clean|process|required)$' || true)
+}
+
+git() {
+  command git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
+    ${GIT_CALLBACK_ARGS[@]+"${GIT_CALLBACK_ARGS[@]}"} "$@"
+}
+
+safe_worktree_add() {
+  disable_git_callbacks "$1"
+  git -C "$1" worktree add --quiet --no-checkout --detach "$2" "$3" || return
+  # includeIf gitdir/worktree config can introduce filters only in the new tree.
+  # Discover those BEFORE materializing any tracked file.
+  disable_git_callbacks "$2"
+  git -C "$2" reset --hard --quiet "$3"
 }

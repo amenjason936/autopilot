@@ -1,0 +1,90 @@
+name: checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  enforced-backend:
+    name: Enforced backend (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      AUTOPILOT_REQUIRE_SANDBOX: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Linux tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats shellcheck jq bubblewrap
+          # Hosted Ubuntu can restrict unprivileged user namespaces with AppArmor.
+          # This is a disposable CI VM; the actual bwrap probes still must pass.
+          if test -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Install macOS tools
+        if: runner.os == 'macOS'
+        run: brew install bats-core shellcheck jq
+      - name: Full suite with required isolation coverage
+        run: |
+          make check | tee "$RUNNER_TEMP/check.log"
+          ! grep -Ei '^ok .*# skip' "$RUNNER_TEMP/check.log"
+      - name: P0 regression mutations
+        run: python3 tests/run-p0-mutants.py "$PWD" "$RUNNER_TEMP/p0-evidence" "$RUNNER_TEMP/p0-patches"
+      - name: Training ground
+        run: bash scripts/training-ground.sh "$RUNNER_TEMP/autopilot-training"
+      - name: Verify training evidence
+        run: bash scripts/verify-evidence.sh "$RUNNER_TEMP/autopilot-training/repo/evidence"
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/check.log
+            ${{ runner.temp }}/p0-evidence
+            ${{ runner.temp }}/p0-patches
+            ${{ runner.temp }}/autopilot-training/repo/evidence
+            ${{ runner.temp }}/autopilot-training/repo/run.md
+  portable-linux:
+    name: Default Ubuntu (no namespace changes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install portable tools only
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats shellcheck jq
+          if test -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          fi
+      - name: Full suite on unchanged host configuration
+        run: make check | tee "$RUNNER_TEMP/portable.log"
+      - name: Full suite with unavailable backends
+        run: |
+          mkdir "$RUNNER_TEMP/no-backend"
+          printf '#!/bin/sh\nexit 1\n' > "$RUNNER_TEMP/no-backend/bwrap"
+          cp "$RUNNER_TEMP/no-backend/bwrap" "$RUNNER_TEMP/no-backend/sandbox-exec"
+          chmod +x "$RUNNER_TEMP/no-backend/"*
+          PATH="$RUNNER_TEMP/no-backend:$PATH" make test | tee "$RUNNER_TEMP/unavailable.log"
+      - name: Verify tests did not modify their own checkout
+        if: always()
+        run: git diff --exit-code
+
+      - name: Upload portable results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-linux
+          path: |
+            ${{ runner.temp }}/portable.log
+            ${{ runner.temp }}/unavailable.log

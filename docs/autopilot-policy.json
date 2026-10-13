@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "sandbox": "env-clean",
+  "deny_network": false,
+  "deny_paths": [],
+  "read_paths": [],
+  "env": [],
+  "record_paths": {
+    "evidence_dir": "validation",
+    "run_record": "VALIDATION.md"
+  }
+}

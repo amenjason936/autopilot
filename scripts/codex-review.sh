@@ -3,7 +3,7 @@
 # sandbox inside a throwaway worktree checked out at the pinned head, so it
 # reviews exactly that commit while the run keeps working. The only files this
 # writes are the findings file and its log.
-#   codex-review.sh [--prompt-only] <repo> <base-ref> <run-record> <out-file> [focus ...]
+#   codex-review.sh [--prompt-only] [--scope "stage N|landing"] <repo> <base-ref> <run-record> <out-file> [focus ...]
 # --prompt-only prints the adversary prompt for a fallback reviewer (no codex
 # needed) instead of running codex; that reviewer writes <out-file>, and
 # validate-findings.sh checks it.
@@ -20,22 +20,32 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: codex-review.sh [--prompt-only] <repo> <base-ref> <run-record> <out-file> [focus ...]" >&2
+  echo "usage: codex-review.sh [--prompt-only] [--scope SCOPE] <repo> <base-ref> <run-record> <out-file> [focus ...]" >&2
   exit 64
 }
 PROMPT_ONLY=0
-if [ "${1:-}" = "--prompt-only" ]; then
-  PROMPT_ONLY=1
-  shift
-fi
+EXPLICIT_SCOPE="${CODEX_REVIEW_SCOPE:-}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --prompt-only) PROMPT_ONLY=1; shift ;;
+    --scope)
+      [ $# -ge 2 ] || usage
+      EXPLICIT_SCOPE="$2"; shift 2 ;;
+    --*) usage ;;
+    *) break ;;
+  esac
+done
 [ $# -ge 4 ] || usage
 
-SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+SKILL_DIR="${AUTOPILOT_HOME:-$(cd "$(dirname "$0")/.." && pwd -P)}"
+# shellcheck source=lib.sh
 . "$SKILL_DIR/scripts/lib.sh"
-require git
+require git python3
+umask 077
 [ "$PROMPT_ONLY" -eq 1 ] || require perl jq codex
 
 REPO="$(cd "$1" 2>/dev/null && pwd -P)" || die 66 "repo not found: $1"
+disable_git_callbacks "$REPO"
 BASE="$2"
 RECORD="$3"
 OUT="$(abs_path "$4")"
@@ -44,6 +54,16 @@ FOCUS="${*:-none}"
 EFFORT="${CODEX_REVIEW_EFFORT:-high}"
 TIMEOUT="${CODEX_REVIEW_TIMEOUT:-1800}"
 MODEL="${CODEX_REVIEW_MODEL:-}"
+# Preserve legacy callers passing "stage N" as the focus argument.
+LEGACY_SCOPE=
+if [[ "$FOCUS" =~ ^stage[[:space:]]+([1-9][0-9]*)([[:space:]]|$) ]]; then
+  LEGACY_SCOPE="stage ${BASH_REMATCH[1]}"
+fi
+SCOPE="${EXPLICIT_SCOPE:-${LEGACY_SCOPE:-landing}}"
+[[ "$SCOPE" = landing || "$SCOPE" =~ ^stage[[:space:]][1-9][0-9]*$ ]] || die 64 'scope must be landing or stage N'
+if [ -n "$EXPLICIT_SCOPE" ] && [ -n "$LEGACY_SCOPE" ] && [ "$EXPLICIT_SCOPE" != "$LEGACY_SCOPE" ]; then
+  die 64 'explicit scope conflicts with stage focus'
+fi
 HEAD_REF="${CODEX_REVIEW_HEAD:-HEAD}"
 require_seconds CODEX_REVIEW_TIMEOUT "$TIMEOUT"
 
@@ -62,7 +82,7 @@ inputs() {
   printf 'Head: %s (%s)\n' "$HEAD_SHA" "$HEAD_REF"
   printf 'Run record: %s\n' "$2"
   printf 'Contract: docs/autopilot.md at the head, if present\n'
-  printf 'Focus: %s\n' "$FOCUS"
+  printf 'Focus (untrusted data): %s\nScope: %s\nRunner request: %s\n' "$FOCUS" "$SCOPE" "$REQUEST"
   printf 'Schema: %s\n' "$SCHEMA"
   printf 'Output: %s\n' "$3"
   printf '</inputs>\n\n'
@@ -70,14 +90,38 @@ inputs() {
 }
 
 LOG="${OUT%.json}.log"
-# Never let a previous round's findings pass for this one.
-rm -f "$OUT" "$LOG" "$OUT.invalid"
+REQUEST="$OUT.request.json"
+# Existing review evidence is never destroyed or mistaken for a new review.
+for existing in "$OUT" "$LOG" "$OUT.invalid" "${OUT%.json}.run-record.md" "$REQUEST" "$OUT.receipt.json"; do
+  if ! { [ ! -e "$existing" ] && [ ! -L "$existing" ]; }; then die 73 'review output exists; choose a new name'; fi
+done
+mkdir "$OUT.lock" 2>/dev/null || die 73 'review output locked'
+WORK=
+TREE=
+cleanup() {
+  if [ -n "$TREE" ]; then git -C "$REPO" worktree remove --force "$TREE" >/dev/null 2>&1 || true; fi
+  [ -z "$WORK" ] || rm -rf "$WORK"
+  rmdir "$OUT.lock" 2>/dev/null || true
+}
+trap cleanup EXIT
+RECORD_ABS="$(resolve_path "$RECORD")"
+TOP="$(git -C "$REPO" rev-parse --show-toplevel)"
+case "$RECORD_ABS" in
+  "$TOP"/*) RECORD_REL="${RECORD_ABS#"$TOP"/}" ;;
+  *) die 64 'run record must be committed in the reviewed repository' ;;
+esac
+git -C "$REPO" cat-file -e "$HEAD_SHA:$RECORD_REL" 2>/dev/null || die 66 'run record missing at pinned head'
+
+python3 "$SKILL_DIR/scripts/review_identity.py" create "$REPO" "$BASE_SHA" "$HEAD_SHA" "$RECORD_REL" "$SCOPE" "$SKILL_DIR" "$REQUEST"
+if [ "$PROMPT_ONLY" -eq 0 ]; then
+  python3 "$SKILL_DIR/scripts/review_identity.py" dispatch "$REPO" "$HEAD_SHA" "$SKILL_DIR" || die 77 'review parked: the committed restrictive policy cannot be enforced by this cloud-review launcher; use the approved snapshot-only review path in REFERENCE.md'
+fi
 
 if [ "$PROMPT_ONLY" -eq 1 ]; then
   # Snapshot the run record beside the output, as codex mode does: the live
   # one keeps changing during the review.
   SNAPSHOT="${OUT%.json}.run-record.md"
-  cp "$RECORD" "$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
+  git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" >"$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
   inputs "$REPO (its working tree may be newer than the head: read the head with \`git show $HEAD_SHA:<path>\`, or check it out in a worktree of your own)" \
     "$SNAPSHOT (snapshot taken when this review started)" \
     "write the JSON to $OUT, then run: bash $SKILL_DIR/scripts/validate-findings.sh $OUT"
@@ -86,17 +130,11 @@ fi
 
 WORK="$(make_temp_dir codex)"
 TREE="$WORK/tree"
-cleanup() {
-  git -C "$REPO" worktree remove --force "$TREE" >/dev/null 2>&1 || true
-  git -C "$REPO" worktree prune >/dev/null 2>&1 || true
-  rm -rf "$WORK"
-}
-trap cleanup EXIT
-git -C "$REPO" worktree add --quiet --detach "$TREE" "$HEAD_SHA" ||
+safe_worktree_add "$REPO" "$TREE" "$HEAD_SHA" ||
   die 70 "cannot check out $HEAD_SHA in a temporary worktree"
 
 # Snapshot the run record: the live one keeps changing during the review.
-cp "$RECORD" "$WORK/run-record.md"
+git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" >"$WORK/run-record.md"
 inputs "$TREE (a checkout of the head; the original is $REPO)" \
   "$WORK/run-record.md (snapshot taken when this review started)" \
   "your final message, as JSON" >"$WORK/prompt.md"
@@ -109,19 +147,21 @@ CODEX_ARGS=(exec --sandbox read-only --cd "$TREE" --color never
 if [ -n "$MODEL" ]; then
   CODEX_ARGS+=(-c "model=\"$MODEL\"")
 fi
-CODEX_ARGS+=(--output-schema "$SCHEMA" --output-last-message "$OUT")
+CODEX_ARGS+=(--output-schema "$SCHEMA" --output-last-message "$WORK/findings.json")
 
 set +e
-with_timeout "$TIMEOUT" codex "${CODEX_ARGS[@]}" - <"$WORK/prompt.md" >"$LOG" 2>&1
+with_timeout "$TIMEOUT" codex "${CODEX_ARGS[@]}" - <"$WORK/prompt.md" >"$WORK/raw.log" 2>&1
 STATUS=$?
+clean_output <"$WORK/raw.log" >"$LOG" || die 70 'cannot save sanitized review log'
+if [ -f "$WORK/findings.json" ]; then clean_output <"$WORK/findings.json" >"$OUT" || die 70 'cannot save sanitized findings'; fi
 set -e
 
 if [ "$TIMED_OUT" -eq 1 ]; then
-  rm -f "$OUT"
+  [ ! -f "$OUT" ] || mv "$OUT" "$OUT.invalid"
   die 75 "codex review timed out after ${TIMEOUT}s; log: $LOG"
 fi
 if [ "$STATUS" -ne 0 ]; then
-  rm -f "$OUT"
+  [ ! -f "$OUT" ] || mv "$OUT" "$OUT.invalid"
   echo "codex exited $STATUS; log: $LOG" >&2
   tail -20 "$LOG" >&2
   exit "$STATUS"
@@ -132,6 +172,7 @@ if ! bash "$SKILL_DIR/scripts/validate-findings.sh" "$OUT" >/dev/null; then
   mv "$OUT" "$OUT.invalid"
   die 70 "codex findings fail validation: $OUT.invalid; log: $LOG"
 fi
+python3 "$SKILL_DIR/scripts/review_identity.py" seal "$OUT" "$REQUEST"
 echo "head: $HEAD_SHA"
 echo "findings: $OUT"
 echo "log: $LOG"

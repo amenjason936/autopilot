@@ -91,6 +91,7 @@ The evidence directory: a directory of its own, holding nothing but evidence (th
 - Docs paths: changes that skip the review gate (default: `*.md` outside source directories).
 - Budget: review rounds per review gate (default 2); whether stage reviews run per stage, are shared between stages, or are deferred to the landing review (which always runs); the most review gates per run.
 - Codex: `CODEX_REVIEW_MODEL`, `CODEX_REVIEW_EFFORT` (default high), `CODEX_REVIEW_TIMEOUT` seconds (default 1800).
+- Cloud model reviewer (optional): the `api-review.py` model and endpoint, where its key comes from, and an explicit approval to upload the redacted pinned snapshot (code, contract, record, evidence) to that provider.
 
 ## Run records
 

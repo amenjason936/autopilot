@@ -27,6 +27,7 @@ TARGETS = [
     ('p0-4-conditional-filter', 'scripts/lib.sh', 'worktree add --quiet --no-checkout --detach', 'worktree add --quiet --detach', 'worktree-conditional filters cannot execute', 'tests/gate.bats'),
     ('p0-5-preview', 'scripts/run-gate.sh', 'if [ "$DRY_RUN" -eq 1 ]; then', 'if [ "$DRY_RUN" -eq 9 ]; then', 'dry-run prints setup commands', 'tests/gate.bats'),
     ('p0-6-output-data', 'scripts/runner.sh', 'tail -n "$keep" "$WORK/clean-output"', '/bin/bash "$WORK/clean-output"; tail -n "$keep" "$WORK/clean-output"', 'untrusted output is recorded', 'tests/gate.bats'),
+    ('p0-8-helper-trust', 'scripts/runner.sh', '[ "$AUTOPILOT_HELPER_PIN" = "$HELPER_DIGEST" ] ||', 'true ||', 'a helper change persisted by an aborted gate is refused', 'tests/integrity.bats'),
     ('p0-7-lock', 'scripts/runner.sh', "|| die 73 'evidence directory locked; inspect owner before recovering a stale lock'", '|| true', 'directory lock rejects', 'tests/gate.bats'),
     ('p0-7-partial', 'scripts/runner.sh', 'mv "$PARTIAL" "$PARTIAL.$(date -u +%Y%m%dT%H%M%SZ).$$"', ': >"$PARTIAL"', 'partial resume archives', 'tests/gate.bats'),
     ('c1-env-inheritance', 'scripts/runner.sh', 'RUN_ENV=(env -i ', 'RUN_ENV=(env ', 'clean environment drops ambient', 'tests/gate.bats'),

@@ -46,6 +46,56 @@ runner_integrity_freeze() {
   CONTROL_DIGEST="$(runner_controls_digest)" || runner_integrity_abort
 }
 
+# Cross-run reference for the helper inventory. HELPER_DIGEST alone is taken
+# from disk, so a change persisted by an earlier gate would become the next
+# baseline. Order: the run's takeoff pin, a clean Git checkout of the skill,
+# the installer receipt. With none of these the runner refuses to start.
+runner_helpers_trust() {
+  local root changed name expected actual
+  root="$(cd "$SCRIPT_DIR/.." && pwd -P)" || runner_integrity_abort
+  if [ -n "${AUTOPILOT_HELPER_PIN:-}" ]; then
+    HELPER_REFERENCE='takeoff pin (AUTOPILOT_HELPER_PIN)'
+    [ "$AUTOPILOT_HELPER_PIN" = "$HELPER_DIGEST" ] ||
+      runner_trust_refuse "helper inventory $HELPER_DIGEST differs from the run's takeoff pin $AUTOPILOT_HELPER_PIN; restore the helpers (git checkout or reinstall) before any gate"
+    return
+  fi
+  if [ "$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" = "$root" ]; then
+    HELPER_REFERENCE="git checkout $(git -C "$root" rev-parse --verify HEAD)"
+    changed="$(git -C "$root" status --porcelain --untracked-files=all -- scripts 2>/dev/null)" || runner_integrity_abort
+    [ -z "$changed" ] ||
+      runner_trust_refuse "helpers differ from the skill checkout's HEAD; restore them with: git -C $root checkout -- scripts (and remove untracked files)
+$changed"
+    return
+  fi
+  if [ -f "$root/INSTALLATION.json" ]; then
+    HELPER_REFERENCE='INSTALLATION.json'
+    changed=
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      expected="$(jq -r --arg n "$name" '.installed_sha256[$n] // empty' "$root/INSTALLATION.json")" || runner_integrity_abort
+      if [ -f "$root/$name" ] && [ ! -L "$root/$name" ]; then actual="$(sha256_of "$root/$name")"; else actual=absent; fi
+      [ "$actual" = "$expected" ] || changed="$changed$name
+"
+    done < <({ jq -r '.installed_sha256 | keys[] | select(startswith("scripts/"))' "$root/INSTALLATION.json"
+      (cd "$root" && find scripts \( -type f -o -type l \) ! -path '*/__pycache__/*'); } | sort -u)
+    [ -z "$changed" ] ||
+      runner_trust_refuse "helpers differ from INSTALLATION.json; reinstall the skill with install-skill.py --replace:
+$changed"
+    return
+  fi
+  HELPER_REFERENCE=none
+  runner_trust_refuse "no trusted helper reference: use a Git checkout or an install-skill.py installation, or set AUTOPILOT_HELPER_PIN to the helper inventory sha256 recorded at takeoff (run-gate.sh --dry-run prints it)"
+}
+
+# A dry run only previews: it reports the refusal a gate would make.
+runner_trust_refuse() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    HELPER_REFERENCE="$HELPER_REFERENCE; a gate would refuse: ${1%%$'\n'*}"
+    return 0
+  fi
+  die 70 "$1"
+}
+
 runner_cleanup() {
   local tree
   for tree in "${TREE:-}" "${BASELINE_TREE:-}"; do
@@ -82,6 +132,7 @@ runner_init() {
   INTEGRITY_CODE="$(<"$SCRIPT_DIR/integrity.py")" || runner_integrity_abort
   [ -n "$INTEGRITY_CODE" ] || runner_integrity_abort
   HELPER_DIGEST="$(runner_integrity_digest "$SCRIPT_DIR")" || runner_integrity_abort
+  runner_helpers_trust
   CONTROL_DIGEST=
   umask 077
   WORKDIR="$(cd "$1" 2>/dev/null && pwd -P)" || die 66 'workdir not found'
@@ -134,6 +185,7 @@ runner_preview() {
   local command name
   {
     printf 'DRY RUN — commands will not execute\nHEAD: %s\ntested commit: %s\nsandbox: %s\n' "$COMMIT" "$TESTED" "$SANDBOX"
+    printf 'helper inventory sha256: %s (reference: %s)\n' "$HELPER_DIGEST" "$HELPER_REFERENCE"
     printf 'cwd: <temporary-worktree>%s\nlauncher: env -i PATH=<current PATH> HOME=<temporary HOME> TMPDIR=<temporary tmp> bash --noprofile --norc -o pipefail -c <command>\n' "$SUBDIR"
     printf 'GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_OPTIONAL_LOCKS=0 LC_ALL=C\n'
     for name in ${ENV_NAMES[@]+"${ENV_NAMES[@]}"}; do
@@ -163,7 +215,7 @@ runner_lock() {
   [ ! -L "$PARTIAL" ] || die 73 'symlink partial refused'
   [ ! -e "$PARTIAL" ] || [ -f "$PARTIAL" ] || die 73 'partial must be a regular file'
   if [ -e "$PARTIAL" ]; then
-    [ "${GATE_RERUN_POLICY:-}" = safe ] || die 76 'resume parked: interrupted commands need a verified safe rerun policy or receipt review'
+    [ "${GATE_RERUN_POLICY:-}" = safe ] || die 76 "resume parked: $LABEL.md.partial is left by an interrupted or aborted gate; rerun under a new label, or set GATE_RERUN_POLICY=safe once the commands are known to be rerun-safe"
     mv "$PARTIAL" "$PARTIAL.$(date -u +%Y%m%dT%H%M%SZ).$$" || die 70 'cannot archive partial'
   fi
   WORK="$(make_temp_dir run)" || exit 70
@@ -327,7 +379,7 @@ runner_header() {
     printf -- '- tested commit: %s\n- HEAD: %s\n- workdir: %s\n- sandbox: %s\n' "$TESTED" "$COMMIT" "$WORKDIR" "$SANDBOX"
     printf -- '- started: %s\n- recorded by sha256: %s\n' "$(date -u +%FT%TZ)" "$(sha256_of "$SCRIPT_DIR/$(basename "$0")")"
     printf -- '- policy: %s\n' "$POLICY"
-    printf -- '- helper inventory sha256: %s\n- frozen controls sha256: %s\n' "$HELPER_DIGEST" "$CONTROL_DIGEST"
+    printf -- '- helper inventory sha256: %s\n- helper reference: %s\n- frozen controls sha256: %s\n' "$HELPER_DIGEST" "$HELPER_REFERENCE" "$CONTROL_DIGEST"
     local helper helper_hash
     for helper in lib.sh runner.sh redact.py policy.py evidence.py record_scope.py failure_signature.py source_state.py integrity.py; do
       helper_hash="$(sha256_of "$SCRIPT_DIR/$helper")" || exit 70

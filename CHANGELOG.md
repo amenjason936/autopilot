@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — cross-run helper trust and a cloud model reviewer
+
+- Gates compare the helper inventory with a trusted reference before running:
+  the takeoff pin `AUTOPILOT_HELPER_PIN`, a clean Git checkout of the skill, or
+  `INSTALLATION.json`. A helper changed by an aborted gate no longer becomes the
+  next gate's baseline; the refusal names the changed files (#3). `--dry-run`
+  prints the digest to pin, and evidence records the reference used.
+- The `resume parked` message for a leftover `.partial` names the label and says
+  to use a new label or a verified safe rerun policy.
+- `api-review.py`: snapshot-only adversary review by a cloud model from another
+  family (default DeepSeek `deepseek-flash`) through an OpenAI-compatible API.
+  The prompt is redacted before upload, supplied files are listed with hashes,
+  replies are validated and sealed, and upload needs `REVIEW_API_UPLOAD=approved`.
+
 ## Unreleased — findings from the sandboxed token-watcher end-to-end run
 
 - Ask the adversary for mutant targets before the first recorded mutant wave,

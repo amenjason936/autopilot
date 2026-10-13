@@ -109,3 +109,77 @@ load test_helper
   [ ! -e "$CASE/executed" ]
   [ ! -e "$EVID/initiallink.md" ]
 }
+
+@test "a helper change persisted by an aborted gate is refused by the next gate (#3)" {
+  isolate_runner
+  unavailable_backend
+  run gate g1 "printf '\n# tampered\n' >> '$SKILL/scripts/failure_signature.py'; true"
+  [ "$status" -eq 70 ]
+  run gate g2 true
+  [ "$status" -eq 70 ]
+  [[ "$output" == *"differs from the run's takeoff pin"* ]]
+  [ ! -e "$EVID/g2.md" ]
+}
+
+@test "without a pin, a clean skill checkout is the reference and drift names the file" {
+  isolate_runner
+  unset AUTOPILOT_HELPER_PIN
+  git -C "$SKILL" init -q
+  git -C "$SKILL" add scripts
+  git -C "$SKILL" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -qm skill
+  run gate clean true
+  [ "$status" -eq 0 ]
+  grep -q '^- helper reference: git checkout ' "$EVID/clean.md"
+  printf '\n# tampered\n' >>"$SKILL/scripts/failure_signature.py"
+  run gate drift true
+  [ "$status" -eq 70 ]
+  [[ "$output" == *'scripts/failure_signature.py'* ]]
+  git -C "$SKILL" checkout -q -- scripts
+  printf 'x = 1\n' >"$SKILL/scripts/hashlib.py"
+  run gate untracked true
+  [ "$status" -eq 70 ]
+  [[ "$output" == *'scripts/hashlib.py'* ]]
+  rm "$SKILL/scripts/hashlib.py"
+  run gate restored true
+  [ "$status" -eq 0 ]
+}
+
+@test "without a pin or checkout, INSTALLATION.json is the reference" {
+  isolate_runner
+  unset AUTOPILOT_HELPER_PIN
+  (cd "$SKILL" && python3 -c 'import hashlib,json,pathlib; print(json.dumps({"installed_sha256": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(pathlib.Path("scripts").rglob("*")) if p.is_file()}}))') >"$SKILL/INSTALLATION.json"
+  run gate installed true
+  [ "$status" -eq 0 ]
+  grep -q '^- helper reference: INSTALLATION.json$' "$EVID/installed.md"
+  printf '\n# tampered\n' >>"$SKILL/scripts/redact.py"
+  run gate changed true
+  [ "$status" -eq 70 ]
+  [[ "$output" == *'scripts/redact.py'* ]]
+  rm -f "$SKILL/INSTALLATION.json"
+  run gate none true
+  [ "$status" -eq 70 ]
+  [[ "$output" == *'no trusted helper reference'* ]]
+}
+
+@test "dry run prints the helper inventory digest to pin at takeoff" {
+  run bash "$SKILL/scripts/run-gate.sh" --dry-run "$REPO" "$EVID/p.md" p true
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"helper inventory sha256: $AUTOPILOT_HELPER_PIN"* ]]
+}
+
+@test "a parked partial names the label and the ways forward" {
+  mkdir -p "$EVID"
+  : >"$EVID/again.md.partial"
+  run gate again true
+  [ "$status" -eq 76 ]
+  [[ "$output" == *'again.md.partial'* ]]
+  [[ "$output" == *'new label'* ]]
+}
+
+@test "a dry run without a reference still previews and says a gate would refuse" {
+  isolate_runner
+  unset AUTOPILOT_HELPER_PIN
+  run bash "$SKILL/scripts/run-gate.sh" --dry-run "$REPO" "$EVID/p.md" p true
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'reference: none; a gate would refuse: no trusted helper reference'* ]]
+}

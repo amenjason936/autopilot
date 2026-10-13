@@ -136,7 +136,7 @@ load test_helper
   cp -R "$SKILL/scripts" "$SKILL/tests" "$CASE/relocated/"
   cp "$SKILL/tests/fixtures/training/subject.sh" "$SKILL/tests/fixtures/training/checks.sh" "$CASE/legacyhome/.claude/skills/autopilot/tests/fixtures/training/"
   printf '\n# legacy-decoy\n' >>"$CASE/legacyhome/.claude/skills/autopilot/tests/fixtures/training/subject.sh"
-  run env HOME="$CASE/legacyhome" bash "$CASE/relocated/scripts/training-ground.sh" "$CASE/training"
+  run env -u AUTOPILOT_HELPER_PIN HOME="$CASE/legacyhome" bash "$CASE/relocated/scripts/training-ground.sh" "$CASE/training"
   [ "$status" -eq 0 ]
   run python3 - "$SKILL/tests/fixtures/training/subject.sh" "$CASE/training/repo/subject.sh" <<'PY'
 import pathlib, sys

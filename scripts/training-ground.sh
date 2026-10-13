@@ -34,6 +34,12 @@ expect() {
   "$@" || actual=$?
   [ "$actual" -eq "$wanted" ] || die 1 "unexpected result: wanted $wanted, got $actual"
 }
+# Takeoff pin: a relocated copy may have no checkout or installer receipt.
+if [ -z "${AUTOPILOT_HELPER_PIN:-}" ]; then
+  AUTOPILOT_HELPER_PIN="$(bash "$SCRIPT_DIR/run-gate.sh" --dry-run "$REPO" "$EVIDENCE/pin.md" pin true | sed -n 's/^helper inventory sha256: \([0-9a-f]*\) .*/\1/p')"
+  [ -n "$AUTOPILOT_HELPER_PIN" ] || die 70 'cannot read the helper inventory digest'
+  export AUTOPILOT_HELPER_PIN
+fi
 gate() { bash "$SCRIPT_DIR/run-gate.sh" "$REPO" "$EVIDENCE/$1.md" "$1" "$2"; }
 mutant() { bash "$SCRIPT_DIR/run-mutant.sh" "$REPO" "$EVIDENCE/$1.md" "$1" "$ROOT/patches/guard.patch" "$2"; }
 expect 1 gate logic-bug 'bash checks.sh boundary'

@@ -37,10 +37,11 @@ load test_helper
 @test "failed git status with empty output cannot prove clean source" {
   mkdir "$CASE/bin"
   real_git="$(command -v git)"
+  canonical_repo="$(cd "$REPO" && pwd -P)"
   cat >"$CASE/bin/git" <<EOF
 #!/bin/bash
 case "\$*" in *status*--porcelain*)
-  if [ -e '$CASE/status-fault' ]; then echo SYNTHETIC_GIT_IO_ERROR >&2; exit 74; fi ;;
+  if [ -e '$CASE/status-fault' ] && [ "\$PWD" = '$canonical_repo' ]; then echo SYNTHETIC_GIT_IO_ERROR >&2; exit 74; fi ;;
 esac
 exec '$real_git' "\$@"
 EOF
@@ -105,6 +106,14 @@ EOF
   printf '{"runtime":"configuration"}\n' >"$REPO/web/config.json"
   commit_fixture
   run bash "$SKILL/scripts/run-gate.sh" --dry-run "$REPO" "$REPO/web/check.md" check true
+  [ "$status" -eq 64 ]
+  # A valid live manifest cannot retrospectively authorize pinned source files.
+  python3 - "$REPO/web" <<'PYTEST'
+import pathlib, hashlib, sys
+p = pathlib.Path(sys.argv[1])
+(p/'MANIFEST').write_text(''.join(hashlib.sha256((p/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ('index.html', 'config.json')))
+PYTEST
+  run bash "$SKILL/scripts/run-gate.sh" --dry-run "$REPO" "$REPO/web/live.md" live true
   [ "$status" -eq 64 ]
   mkdir "$REPO/proof"
   printf '{"version":1,"record_paths":{"evidence_dir":"proof"}}' >"$REPO/docs/autopilot-policy.json"

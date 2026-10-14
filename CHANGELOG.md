@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — lite small-change and host adaptation
+
+- `--lite` gains `risk: small-change` for a small code fix: at most 4 files,
+  40 changed lines outside tests, 150 in all, no dependency/build/CI/security
+  files, no deleted source. It keeps the machine gate and one KILLED mutant per
+  criterion (author-selected allowed), drops the targets request and stage
+  review, and keeps the landing audit. Record paths no longer count toward lite
+  limits. Refusals name the rule.
+- `host-doctor.sh` probes the host and the committed policy and recommends
+  strict, install (with `--fix` to apply the host changes when authorized),
+  env-clean, degraded or park.
+- Policy `"fallback": "env-clean"` (default `park`): a restrictive policy on a
+  host without a usable backend runs with its red lines disclosed as NOT
+  OS-enforced and network reduced to dead proxy variables, instead of parking.
+
 ## Unreleased — findings from the fourth and fifth end-to-end runs
 
 The token-watcher (Node) and CardiacTrim (Python) runs both landed, with 72 and

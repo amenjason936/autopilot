@@ -27,6 +27,39 @@ A network prohibition or any denied path automatically selects `sandbox-exec` on
 
 macOS uses the installed Seatbelt `sandbox-exec`; Linux needs bubblewrap plus usable user namespaces. A restrictive outer sandbox or disabled namespaces can make preflight fail. This is a deployment limitation, not a passing sandbox test. Strong mode preflight checks an allowed generated file, read/write denial of a generated canary outside the allowlist, and a UDP socket connected to an external IP. UDP connect sends **no packet**: an unsandboxed positive control must succeed and the sandboxed operation must fail. These repeatable probes check the specified boundaries; they do not prove resistance to kernel exploits or every possible external tool. Dependencies must be available offline in approved runtime paths.
 
+## Host adaptation
+
+`host-doctor.sh [--fix] [REPO]` checks the required tools, whether the OS sandbox
+launches (bwrap on Linux with an unshared user and network namespace,
+`sandbox-exec` on macOS), why not (bwrap missing, AppArmor restricting user
+namespaces without a bwrap profile, `unprivileged_userns_clone=0`, a container),
+whether `sudo` works without a password and which package manager exists. It
+reads the committed policy at REPO's HEAD and prints one recommendation:
+
+| recommendation | exit | meaning |
+|---|---|---|
+| `strict` | 0 | the backend launches; run the policy as written |
+| `env-clean` | 0 | unrestricted policy; gates run env-clean and disclose it |
+| `degraded` | 0 | restrictive policy, no backend, policy approves `"fallback": "env-clean"` |
+| `install` | 1 | the listed host changes would make it launch |
+| `park` | 2 | restrictive policy, no backend, no approved fallback |
+
+`--fix` applies the `install` changes (installing bubblewrap, an AppArmor profile
+for `/usr/bin/bwrap` only, enabling unprivileged user namespaces) through
+passwordless `sudo`, then probes again. These change the host: run it only when
+the contract pre-authorizes host setup or the human approves it at takeoff.
+
+**The fallback.** A policy field `"fallback": "park" | "env-clean"` (default
+`park`) says what a restrictive policy does when the backend cannot launch. Only
+the human sets it, in the committed policy. With `env-clean`, gates run without
+the OS sandbox: evidence carries `RED LINES NOT OS-ENFORCED: the policy denies …`
+and `source protection: NOT OS-ENFORCED`; network denial is reduced to dead proxy
+variables (`HTTP(S)_PROXY`, `ALL_PROXY`, `npm_config_offline=true`,
+`PIP_NO_INDEX=1`) that well-behaved clients honour and nothing enforces; denied
+paths stay readable. The record lists every red line it no longer enforces under
+*Not verified*. A backend that launches but fails its probes is still refused,
+never degraded.
+
 ## Runner integrity in fallback mode
 
 Before execution, the runner loads its integrity checker into parent-shell memory
@@ -142,7 +175,7 @@ reviewers may challenge: a test that adds an early exit can still change what
 runs. Rearranging tests silently retargets a regex signature, which is why edits
 to existing test lines always count.
 
-`check-lite.sh REPO BASE HEAD RUN-CONFIG.json` counts added+removed lines across the **entire** diff, without record-path exclusions that could hide code. Config must contain exactly `{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}`. The deterministic allowlist accepts only non-executable low-risk `.md`/`.rst` files; `.txt` is intentionally full mode because it includes requirements and build entrypoints. Executable-bit and mode-only changes are rejected. Runtime code, dependency changes and safety-sensitive names (including SKILL/AGENTS, review briefs, policy, contract, authentication, security and migrations) require full mode even for one line. The runner's `--lite` flag additionally requires `AUTOPILOT_BASE` and `AUTOPILOT_RUN_CONFIG`. Eligibility is rechecked at each gate as scope grows. These declarations cannot establish their own truth; the landing auditor compares them with the actual plan/commands. Invalid eligibility falls back to the full workflow, never silently waives review.
+`check-lite.sh REPO BASE HEAD RUN-CONFIG.json` counts added+removed lines across the diff, except the policy's record paths, which the runner admits only as registered evidence and a `.md` record. Config must contain exactly `{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}` or the same with `"risk":"small-change"`. small-change: at most 4 files, 40 changed lines outside tests (paths like `test/`, `tests/`, `*.test.*`, `test_*.py`) and 150 in all; dependency/build/CI files (`package.json`, lockfiles, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `Makefile`, `Dockerfile`, `tsconfig*.json`, test-runner configs, `.gitignore`, `.npmrc`, `.env*`) and deleting a non-test file are refused; the message says which rule refused it. The deterministic allowlist accepts only non-executable low-risk `.md`/`.rst` files; `.txt` is intentionally full mode because it includes requirements and build entrypoints. Executable-bit and mode-only changes are rejected. Runtime code, dependency changes and safety-sensitive names (including SKILL/AGENTS, review briefs, policy, contract, authentication, security and migrations) require full mode even for one line. The runner's `--lite` flag additionally requires `AUTOPILOT_BASE` and `AUTOPILOT_RUN_CONFIG`. Eligibility is rechecked at each gate as scope grows. These declarations cannot establish their own truth; the landing auditor compares them with the actual plan/commands. Invalid eligibility falls back to the full workflow, never silently waives review.
 
 ## Review and landing
 

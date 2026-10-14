@@ -30,6 +30,8 @@ TARGETS = [
     ('p0-8-helper-trust', 'scripts/runner.sh', '[ "$AUTOPILOT_HELPER_PIN" = "$HELPER_DIGEST" ] ||', 'true ||', 'a helper change persisted by an aborted gate is refused', 'tests/integrity.bats'),
     ('p0-9-record-paths', 'scripts/runner.sh', 'record_specs "$TOP" "$EVIDENCE_DIR" "$RECORD" "$policy_evidence" "$policy_record"', 'record_specs "$TOP" "$EVIDENCE_DIR" "$RECORD"', 'a scratch gate ignores the run', 'tests/drill-45.bats'),
     ('p0-10-ignored-evidence', 'scripts/evidence.py', '    if ignored(directory, name):', '    if False:', 'register refuses a name the repository ignores', 'tests/drill-45.bats'),
+    ('p0-11-lite-small-change', 'scripts/lite.py', "            if risk == 'small-change':", '            if False:', 'lite small-change admits a small code fix', 'tests/drill-45.bats'),
+    ('p0-12-fallback-approval', 'scripts/runner.sh', '[ "$(printf \'%s\' "$POLICY" | jq -r \'.fallback // "park"\')" = env-clean ]', 'true', 'a restrictive policy parks without a usable backend', 'tests/drill-45.bats'),
     ('p0-7-lock', 'scripts/runner.sh', "|| die 73 'evidence directory locked; inspect owner before recovering a stale lock'", '|| true', 'directory lock rejects', 'tests/gate.bats'),
     ('p0-7-partial', 'scripts/runner.sh', 'mv "$PARTIAL" "$PARTIAL.$(date -u +%Y%m%dT%H%M%SZ).$$"', ': >"$PARTIAL"', 'partial resume archives', 'tests/gate.bats'),
     ('c1-env-inheritance', 'scripts/runner.sh', 'RUN_ENV=(env -i ', 'RUN_ENV=(env ', 'clean environment drops ambient', 'tests/gate.bats'),

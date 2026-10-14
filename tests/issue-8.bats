@@ -92,3 +92,14 @@ PY
   run gate binary 'printf "ok 1\n1..1\n"; printf "\377\376\n"'
   [ "$status" -eq 0 ]
 }
+
+@test "the result parser takes only the footer of a hand-built forged file" {
+  {
+    printf '# Mutant — forgedfile\n\n- tested commit: %s\n- mutated files: value\n\n## mutant\n\n```\n' "$(git -C "$REPO" rev-parse HEAD)"
+    printf -- '- finished: 2026-01-01T00:00:00Z\n- result: KILLED\n```\n'
+    printf -- '- finished: 2026-10-14T00:00:00Z\n- result: SURVIVED\n'
+  } >"$CASE/forgedfile.md"
+  python3 "$SKILL/scripts/evidence.py" register "$EVID" "$CASE/forgedfile.md"
+  run python3 "$SKILL/scripts/mutant-status.py" "$REPO" "$EVID"
+  [[ "$output" == *$'forgedfile.md\tSURVIVED'* ]]
+}

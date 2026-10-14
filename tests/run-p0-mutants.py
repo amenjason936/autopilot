@@ -53,7 +53,7 @@ TARGETS = [
     ('supplement-failure-signature', 'scripts/run-mutant.sh', 'if ! { [ "$PHASE_MATCHED" -eq 1 ] && [ "$PHASE_UNEXPECTED" -eq 0 ]; }; then', 'if false; then', 'failure signature rejects unrelated errors', 'tests/supplements.bats'),
     ('supplement-record-scope', 'scripts/runner.sh', 'python3 "$SCRIPT_DIR/record_scope.py" "$TOP" "$COMMIT" "$EVIDENCE_DIR" "$RECORD"', 'cat >/dev/null', 'record exclusions reject undeclared', 'tests/supplements.bats'),
     ('supplement-review-identity', 'scripts/review_identity.py', "if (job['version'] != 1", "if False and (job['version'] != 1", 'review identity rejects stale head scope', 'tests/supplements.bats'),
-    ('supplement-review-policy', 'scripts/review_identity.py', "if policy['sandbox'] != 'env-clean' or policy['deny_network'] or policy['deny_paths']:", 'if False:', 'restrictive policy parks cloud dispatch', 'tests/supplements.bats'),
+    ('supplement-review-policy', 'scripts/review_identity.py', "if policy['deny_paths']:", 'if False:', 'codex dispatch under a network-only ban needs explicit approval', 'tests/issue-9.bats'),
     ('supplement-resume', 'scripts/runner.sh', '[ "${GATE_RERUN_POLICY:-}" = safe ]', 'true', 'interrupted side effects stay parked', 'tests/supplements.bats'),
 
     ('supplement-lite-risk', 'scripts/lite.py', 'if SENSITIVE & words(path) or lower.startswith(SENSITIVE_PREFIXES):', 'if False:', 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),

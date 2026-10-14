@@ -123,7 +123,9 @@ on_signal() {
 # once through perl with the default disposition so the trap below can work.
 # Call as `restore_signals "$@"` before parsing arguments.
 restore_signals() {
-  if [ -z "${AUTOPILOT_SIGNALS_RESTORED:-}" ] && [ "$(trap -p INT)" = "trap -- '' SIGINT" ]; then
+  # Always once, not only when `trap -p` shows SIGINT ignored: bash 3.2 (macOS)
+  # does not report signals that were ignored on entry.
+  if [ -z "${AUTOPILOT_SIGNALS_RESTORED:-}" ]; then
     AUTOPILOT_SIGNALS_RESTORED=1 exec perl -e '$SIG{INT} = "DEFAULT"; $SIG{QUIT} = "DEFAULT"; exec { $ARGV[0] } @ARGV or die "exec failed\n"' "$BASH" "$0" "$@"
   fi
 }

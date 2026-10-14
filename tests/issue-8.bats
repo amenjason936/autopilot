@@ -95,7 +95,8 @@ PY
 
 @test "a backgrounded gate stops on SIGINT without publishing evidence" {
   run bash -c 'bash "$SKILL/scripts/run-gate.sh" "$REPO" "$EVID/bg.md" bg "sleep 30" >/dev/null 2>&1 & pid=$!; sleep 3; kill -INT "$pid"; start=$SECONDS; wait "$pid"; echo "status=$? after=$((SECONDS - start))"'
-  [[ "$output" == *'status=130'* ]]
+  status_seen="${output#status=}"; status_seen="${status_seen%% *}"
+  [ "$status_seen" = 130 ]
   after="${output##*after=}"
   [ "$after" -lt 10 ]
   [ ! -e "$EVID/bg.md" ]

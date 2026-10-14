@@ -1,6 +1,6 @@
 # Autopilot
 
-Run a bounded, approved coding plan with committed machine checks, independent review and recoverable evidence. Every gate has three outcomes: **run** a check, **review** a claim, or **park** work that needs authority or access. Version **0.2.0-rc.2** includes the rc.1 repair work and maintainer compatibility fixes; see [CHANGELOG.md](CHANGELOG.md).
+Run a bounded, approved coding plan with committed machine checks, independent review and recoverable evidence. Every gate has three outcomes: **run** a check, **review** a claim, or **park** work that needs authority or access. Version **0.3.0-rc.1** adds lite small-change runs, host adaptation, a cloud model reviewer, cross-run helper trust and the fixes from two independent review rounds; see [CHANGELOG.md](CHANGELOG.md).
 
 ```mermaid
 flowchart LR

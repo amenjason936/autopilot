@@ -117,6 +117,16 @@ on_signal() {
   [ -n "${WT_MARKER_FILE:-}" ] && rm -f "$WT_MARKER_FILE"
   exit "$1"
 }
+# A non-interactive shell starts `cmd &` with SIGINT ignored, and bash cannot
+# trap a signal that was ignored on entry: a backgrounded gate would then run
+# to completion and publish evidence after Ctrl-C/kill -INT (issue #8). Re-exec
+# once through perl with the default disposition so the trap below can work.
+# Call as `restore_signals "$@"` before parsing arguments.
+restore_signals() {
+  if [ -z "${AUTOPILOT_SIGNALS_RESTORED:-}" ] && [ "$(trap -p INT)" = "trap -- '' SIGINT" ]; then
+    AUTOPILOT_SIGNALS_RESTORED=1 exec perl -e '$SIG{INT} = "DEFAULT"; $SIG{QUIT} = "DEFAULT"; exec { $ARGV[0] } @ARGV or die "exec failed\n"' "$BASH" "$0" "$@"
+  fi
+}
 trap 'on_signal 130' INT
 trap 'on_signal 143' TERM
 trap 'on_signal 129' HUP

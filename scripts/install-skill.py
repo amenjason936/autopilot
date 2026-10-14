@@ -39,7 +39,7 @@ def inventory(root):
 
 
 RUNTIME_FILES = {
-    'SKILL.md', 'VERSION', 'README.md', 'REFERENCE.md', 'CHANGELOG.md',
+    'SKILL.md', 'VERSION', 'LICENSE', 'README.md', 'REFERENCE.md', 'CHANGELOG.md',
     'CONTRACT-TEMPLATE.md', 'RUN-RECORD-TEMPLATE.md', 'AUDITOR-BRIEF.md',
     'CODEX-BRIEF.md', 'codex-findings.schema.json', 'agents/openai.yaml',
 }

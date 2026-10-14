@@ -92,3 +92,61 @@ PY
   run gate binary 'printf "ok 1\n1..1\n"; printf "\377\376\n"'
   [ "$status" -eq 0 ]
 }
+
+@test "a backgrounded gate stops on SIGINT without publishing evidence" {
+  run bash -c 'bash "$SKILL/scripts/run-gate.sh" "$REPO" "$EVID/bg.md" bg "sleep 30" >/dev/null 2>&1 & pid=$!; sleep 3; kill -INT "$pid"; start=$SECONDS; wait "$pid"; echo "status=$? after=$((SECONDS - start))"'
+  [[ "$output" == *'status=130'* ]]
+  after="${output##*after=}"
+  [ "$after" -lt 10 ]
+  [ ! -e "$EVID/bg.md" ]
+}
+
+@test "verify refuses unregistered files beside evidence and only notes partials" {
+  printf 'a\n' >"$CASE/a.md"
+  python3 "$SKILL/scripts/evidence.py" register "$EVID" "$CASE/a.md"
+  : >"$EVID/run.md.partial"
+  run bash "$SKILL/scripts/verify-evidence.sh" "$EVID"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'unpublished partials'* ]]
+  printf 'forged\n' >"$EVID/extra.md"
+  run bash "$SKILL/scripts/verify-evidence.sh" "$EVID" a.md
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'unregistered files in the evidence directory: extra.md'* ]]
+}
+
+@test "a degraded run fails when a command writes into the original checkout, ignored files included" {
+  unavailable_backend
+  mkdir -p "$REPO/docs"
+  printf '{"version":1,"deny_network":true,"fallback":"env-clean"}' >"$REPO/docs/autopilot-policy.json"
+  printf 'local.env\n' >>"$REPO/.gitignore"
+  commit_fixture
+  run gate clean true
+  [ "$status" -eq 0 ]
+  run gate dirty "printf leaked >'$REPO/local.env'"
+  [ "$status" -eq 1 ]
+  grep -q 'original checkout changed during a degraded run' "$EVID/dirty.md"
+}
+
+@test "a run killed with SIGKILL leaves nothing the next run does not sweep" {
+  bash -c 'bash "$SKILL/scripts/run-gate.sh" "$REPO" "$EVID/k.md" k "sleep 30" >/dev/null 2>&1 & pid=$!; sleep 3; pkill -KILL -P "$pid" perl 2>/dev/null; kill -KILL "$pid"; wait "$pid" 2>/dev/null; true'
+  sleep 1
+  before="$(git -C "$REPO" worktree list | wc -l)"
+  [ "$before" -ge 2 ]
+  rm -rf "$EVID/.autopilot.lock"
+  run gate after true
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$REPO" worktree list | wc -l)" -eq 1 ]
+}
+
+@test "host doctor validates the policy first and probes the backend it names" {
+  mkdir -p "$REPO/docs"
+  printf '{"version":1,"sandbox":"INVALID"}' >"$REPO/docs/autopilot-policy.json"; commit_fixture
+  run bash "$SKILL/scripts/host-doctor.sh" "$REPO"
+  [ "$status" -eq 64 ]
+  [[ "$output" == *'is invalid'* ]]
+  other=sandbox-exec; [ "$(uname -s)" != Darwin ] || other=bwrap
+  printf '{"version":1,"deny_network":true,"sandbox":"%s"}' "$other" >"$REPO/docs/autopilot-policy.json"; commit_fixture
+  run bash "$SKILL/scripts/host-doctor.sh" "$REPO"
+  [[ "$output" == *"OS sandbox ($other): unusable"* ]]
+  [[ "$output" != *'recommendation: strict'* ]]
+}

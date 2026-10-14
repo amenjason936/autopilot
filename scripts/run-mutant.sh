@@ -7,6 +7,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 # shellcheck source=lib.sh
 . "$SCRIPT_DIR/lib.sh"
+restore_signals "$@"
 # shellcheck source=runner.sh
 . "$SCRIPT_DIR/runner.sh"
 ORIGINAL_ARGC=$#

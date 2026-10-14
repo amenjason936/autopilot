@@ -34,7 +34,29 @@ def snapshot(tree, writes):
     return sorted(rows)
 
 
+def checkout_digest(top, excluded):
+    """Every file of the original checkout, ignored ones included (name, size, mtime)."""
+    import hashlib
+    rows = []
+    skip = {os.path.normpath(e) for e in excluded}
+    for directory, dirs, names in os.walk(top):
+        dirs[:] = sorted(d for d in dirs if d != '.git' and os.path.normpath(os.path.join(directory, d)) not in skip)
+        for name in sorted(names):
+            path = os.path.join(directory, name)
+            if os.path.normpath(path) in skip:
+                continue
+            try:
+                info = os.lstat(path)
+            except FileNotFoundError:
+                continue
+            rows.append(f'{os.path.relpath(path, top)}\0{info.st_size}\0{info.st_mtime_ns}')
+    return hashlib.sha256('\n'.join(rows).encode()).hexdigest()
+
+
 def main():
+    if len(sys.argv) >= 3 and sys.argv[1] == 'checkout':
+        print(checkout_digest(sys.argv[2], sys.argv[3:]))
+        return 0
     mode, root, policy_file, state_file = sys.argv[1:]
     tree = pathlib.Path(root)
     writes = json.loads(pathlib.Path(policy_file).read_text())['write_dirs']

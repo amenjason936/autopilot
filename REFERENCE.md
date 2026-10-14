@@ -29,6 +29,11 @@ macOS uses the installed Seatbelt `sandbox-exec`; Linux needs bubblewrap plus us
 
 ## Evidence format and redaction
 
+Gate commands run as `bash --noprofile --norc -o pipefail -c <command>`, without
+`-e`: a multi-step command's status is its last step's. Join steps with `&&`, or
+start the command with `set -e`, when an earlier failure must fail the gate.
+Sandbox denials show in the output either way.
+
 Machine conclusions come only from runner-written structure: a result is the
 file's final two lines, `- finished: …` and `- result: …`; header fields come
 before any command output. Tools (`mutant-status.py`, `api-review.py`, the
@@ -199,7 +204,41 @@ reviewers may challenge: a test that adds an early exit can still change what
 runs. Rearranging tests silently retargets a regex signature, which is why edits
 to existing test lines always count.
 
-`check-lite.sh REPO BASE HEAD RUN-CONFIG.json` counts added+removed lines across the diff, except the policy's record paths, which the runner admits only as registered evidence and a `.md` record. Config must contain exactly `{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}` or the same with `"risk":"small-change"`. Files under the policy's `generated_paths` (committed build output such as `dist/`) are not counted either; the contract must then have a gate command proving them fresh against the source (e.g. compile a copy into `$AUTOPILOT_OUTPUT` and diff), and `suggest-mutants.sh` skips them along with `*.min.js`, `*.map` and `*.d.ts`. Sensitive names are matched as whole words of the path, split on `/ . _ -` and camelCase: `authMiddleware.ts` and `oauth/` are refused, `author.ts` is not. The policy's `lite` list (default `["documentation-only"]`) is the human's opt-in per risk class. small-change also refuses any added or removed code line (outside tests) containing an access-control or secret word — `auth*`, `admin*`, `role`, `permission`, `privilege`, `password`, `secret`, `credential`, `csrf`, `cors`, `acl`, `rbac`, `sudo`, `chmod`, `signature`, `encrypt`/`decrypt`, `sanitize`, allow/deny lists — because a two-line guard removal looks small and innocuous to a path check. An executable bit is refused only when it changes or arrives with a new file; symlinks and submodules always. small-change: at most 4 files, 40 changed lines outside tests (paths like `test/`, `tests/`, `*.test.*`, `test_*.py`) and 150 in all; dependency/build/CI files (`package.json`, lockfiles, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `Makefile`, `Dockerfile`, `tsconfig*.json`, test-runner configs, `.gitignore`, `.npmrc`, `.env*`) and deleting a non-test file are refused; the message says which rule refused it. The deterministic allowlist accepts only non-executable low-risk `.md`/`.rst` files; `.txt` is intentionally full mode because it includes requirements and build entrypoints. Executable-bit and mode-only changes are rejected. Runtime code, dependency changes and safety-sensitive names (including SKILL/AGENTS, review briefs, policy, contract, authentication, security and migrations) require full mode even for one line. The runner's `--lite` flag additionally requires `AUTOPILOT_BASE` and `AUTOPILOT_RUN_CONFIG`. Eligibility is rechecked at each gate as scope grows. These declarations cannot establish their own truth; the landing auditor compares them with the actual plan/commands. Invalid eligibility falls back to the full workflow, never silently waives review.
+`check-lite.sh REPO BASE HEAD RUN-CONFIG.json` decides lite eligibility. The run
+config must be exactly `{"stages":1,"network":false,"publish":false,"risk":R}`,
+and the committed policy's `lite` list (default `["documentation-only"]`) must
+include R: that list is the human's opt-in per risk class. The runner's `--lite`
+flag additionally requires `AUTOPILOT_BASE` and `AUTOPILOT_RUN_CONFIG`, rechecks
+eligibility at every gate, and records the result in the evidence header.
+
+Common to both classes: the policy's record paths and `generated_paths` are not
+counted (the runner admits only registered evidence and a `.md` record there;
+generated output needs a gate command proving it fresh, e.g. compile a copy into
+`$AUTOPILOT_OUTPUT` and diff). Binary changes, symlinks and submodules are
+refused, and so is an executable bit that changes or arrives with a new file.
+Sensitive names are matched as whole path words, split on `/ . _ -` and
+camelCase (`authMiddleware.ts`, `oauth/`, SKILL/AGENTS, briefs, policy, contract,
+security, secrets, credentials, migrations; not `author.ts`).
+
+- **documentation-only**: at most 50 added+removed lines, only non-executable
+  `.md`/`.rst` files (`.txt` is excluded on purpose: it includes requirements and
+  build entrypoints). No mutants, no adversary review.
+- **small-change**: at most 4 files, 40 changed lines outside tests (paths like
+  `test/`, `tests/`, `*.test.*`, `test_*.py`) and 150 in all. Refused:
+  dependency/build/CI files (`package.json`, lockfiles, `requirements*.txt`,
+  `pyproject.toml`, `go.mod`, `Cargo.toml`, `Makefile`, `Dockerfile`,
+  `tsconfig*.json`, test-runner configs, `.gitignore`, `.npmrc`, `.env*`), deleting
+  a non-test file, and any added or removed code line containing an
+  access-control or secret word (`auth*`, `admin*`, `role`, `permission`,
+  `privilege`, `password`, `secret`, `credential`, `csrf`, `cors`, `acl`, `rbac`,
+  `sudo`, `chmod`, `signature`, `encrypt`/`decrypt`, `sanitize`, allow/deny lists),
+  because a two-line guard removal looks small and innocuous to a path check.
+  It still needs one KILLED mutant per criterion.
+
+Each refusal names its rule. The checker cannot judge meaning: the landing
+auditor reruns it, compares the declarations with the actual plan and commands,
+and judges whether the change is really small and low-risk. A refusal at any
+gate moves the run to the full workflow; it never silently waives review.
 
 ## Review and landing
 
@@ -354,6 +393,16 @@ Other settings: `REVIEW_API_BASE` (default `https://api.deepseek.com`),
 `REVIEW_API_EFFORT=high`, `REVIEW_API_MAX_TOKENS=131072`, `REVIEW_API_TIMEOUT=1800`,
 `REVIEW_API_MAX_CHARS=600000`, `REVIEW_API_FILE_CHARS=40000`. A contract that uses it
 sets the effort, the size cap and how failed calls count against its budget.
+`REVIEW_API_BASE` may point at any OpenAI-compatible endpoint: the contract
+names the provider, and the upload approval covers only that one. The review
+identity binds base, head, scope, record, contract, policy, brief and schema;
+it does not bind the focus text, model or effort, which `<out>.supplied.txt` and
+`<out>.log.txt` record instead. Condensed mutant evidence omits test output, so
+an API reviewer cannot re-derive a signature match; it relies on the runner's
+recorded result. `validate-findings.sh` checks findings with its own jq rules,
+which are stricter than `codex-findings.schema.json` (e.g. confidence in 0..1);
+keep them in step when the schema changes.
+
 A different model family is the point: record it as the reviewer in the ledger
 (`deepseek-flash`), not as `codex` or a same-family fallback.
 

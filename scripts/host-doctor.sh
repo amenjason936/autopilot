@@ -27,9 +27,35 @@ for tool in codex bats shellcheck; do
   printf 'optional %s: %s\n' "$tool" "$(command -v "$tool" >/dev/null 2>&1 && echo found || echo absent)"
 done
 
+NAMED=
+RESTRICTIVE=unknown
+FALLBACK=park
+if POLICY="$(python3 "$SCRIPT_DIR/policy.py" select "$REPO" HEAD 2>/dev/null)"; then
+  RESTRICTIVE="$(printf '%s' "$POLICY" | jq -r '.effective | if .deny_network or (.deny_paths | length > 0) then "yes" else "no" end')"
+  FALLBACK="$(printf '%s' "$POLICY" | jq -r '.effective.fallback // "park"')"
+  NAMED="$(printf '%s' "$POLICY" | jq -r '.effective.sandbox')"
+  printf 'policy: %s (restrictive: %s; fallback: %s)\n' "$(printf '%s' "$POLICY" | jq -r '.path // "none (defaults)"')" "$RESTRICTIVE" "$FALLBACK"
+elif git -C "$REPO" cat-file -e "HEAD:${GATE_POLICY:-docs/autopilot-policy.json}" 2>/dev/null; then
+  printf 'policy: %s at HEAD is invalid — gates refuse it (exit 64); fix the policy first\n' "${GATE_POLICY:-docs/autopilot-policy.json}"
+  exit 64
+elif git -C "$REPO" cat-file -e HEAD:docs/autopilot.md 2>/dev/null; then
+  printf 'policy: contract present but no valid committed docs/autopilot-policy.json at HEAD — gates will refuse; commit the policy, then run host-doctor again\n'
+  RESTRICTIVE=yes
+else
+  printf 'policy: none at %s HEAD (no contract yet); recommendation assumes a restrictive one\n' "$REPO"
+  RESTRICTIVE=yes
+fi
+
 OS="$(uname -s)"
+# Probe the backend the policy will actually use: a policy naming bwrap cannot
+# run on macOS, nor sandbox-exec on Linux, whatever else the host offers.
+WANT=bwrap
+[ "$OS" != Darwin ] || WANT=sandbox-exec
+case "$NAMED" in bwrap|sandbox-exec) WANT="$NAMED" ;; esac
 backend_ok() {
-  if [ "$OS" = Darwin ]; then
+  if [ "$WANT" = bwrap ] && [ "$OS" = Darwin ]; then return 1; fi
+  if [ "$WANT" = sandbox-exec ] && [ "$OS" != Darwin ]; then return 1; fi
+  if [ "$WANT" = sandbox-exec ]; then
     command -v sandbox-exec >/dev/null 2>&1 && sandbox-exec -p '(version 1)(allow default)' /usr/bin/true >/dev/null 2>&1
   else
     command -v bwrap >/dev/null 2>&1 &&
@@ -49,6 +75,12 @@ FIXES=()
 REASON=
 if backend_ok; then
   BACKEND=usable
+elif [ "$WANT" = bwrap ] && [ "$OS" = Darwin ]; then
+  BACKEND=unusable
+  REASON='the policy names bwrap, which macOS does not have'
+elif [ "$WANT" = sandbox-exec ] && [ "$OS" != Darwin ]; then
+  BACKEND=unusable
+  REASON='the policy names sandbox-exec, which only macOS has'
 elif [ "$OS" = Darwin ]; then
   BACKEND=unusable
   REASON='sandbox-exec cannot launch; macOS offers no supported replacement'
@@ -77,7 +109,7 @@ else
   fi
   [ -n "$REASON" ] || REASON='bwrap is installed but cannot create namespaces'
 fi
-printf 'OS sandbox (%s): %s%s\n' "$([ "$OS" = Darwin ] && echo sandbox-exec || echo bwrap)" "$BACKEND" "${REASON:+ — $REASON}"
+printf 'OS sandbox (%s): %s%s\n' "$WANT" "$BACKEND" "${REASON:+ — $REASON}"
 printf 'privilege: sudo without password: %s; package manager: %s\n' "$SUDO" "${PKG:-none}"
 
 if [ "$BACKEND" = unusable ] && [ "$FIX" -eq 1 ] && [ ${#FIXES[@]} -gt 0 ] && [ "$SUDO" != no ]; then
@@ -87,20 +119,6 @@ if [ "$BACKEND" = unusable ] && [ "$FIX" -eq 1 ] && [ ${#FIXES[@]} -gt 0 ] && [ 
     as_root sh -c "$fix" || printf 'failed: %s\n' "$fix"
   done
   if backend_ok; then BACKEND=usable; REASON=; FIXES=(); printf 'OS sandbox after --fix: usable\n'; else printf 'OS sandbox after --fix: still unusable\n'; fi
-fi
-
-RESTRICTIVE=unknown
-FALLBACK=park
-if POLICY="$(python3 "$SCRIPT_DIR/policy.py" select "$REPO" HEAD 2>/dev/null)"; then
-  RESTRICTIVE="$(printf '%s' "$POLICY" | jq -r '.effective | if .deny_network or (.deny_paths | length > 0) then "yes" else "no" end')"
-  FALLBACK="$(printf '%s' "$POLICY" | jq -r '.effective.fallback // "park"')"
-  printf 'policy: %s (restrictive: %s; fallback: %s)\n' "$(printf '%s' "$POLICY" | jq -r '.path // "none (defaults)"')" "$RESTRICTIVE" "$FALLBACK"
-elif git -C "$REPO" cat-file -e HEAD:docs/autopilot.md 2>/dev/null; then
-  printf 'policy: contract present but no valid committed docs/autopilot-policy.json at HEAD — gates will refuse; commit the policy, then run host-doctor again\n'
-  RESTRICTIVE=yes
-else
-  printf 'policy: none at %s HEAD (no contract yet); recommendation assumes a restrictive one\n' "$REPO"
-  RESTRICTIVE=yes
 fi
 
 [ ${#missing[@]} -eq 0 ] || { printf 'recommendation: install the required tools first\n'; exit 69; }

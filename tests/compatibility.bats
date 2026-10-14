@@ -71,7 +71,7 @@ load test_helper
 
 @test "missing sandbox executable permits env-clean but refuses strict policy" {
   mkdir "$CASE/minimal-bin"
-  for tool in git perl python3 jq bash env dirname basename mkdir mktemp cat rm rmdir date uname sha256sum shasum awk tail chmod mv; do
+  for tool in git perl python3 jq bash env dirname basename mkdir mktemp cat rm rmdir date uname sha256sum shasum awk tail chmod mv ln head sed; do
     location="$(command -v "$tool" || true)"
     [ -z "$location" ] || ln -s "$location" "$CASE/minimal-bin/$tool"
   done

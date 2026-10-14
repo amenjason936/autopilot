@@ -125,7 +125,7 @@ if [ "$PROMPT_ONLY" -eq 1 ]; then
   # Snapshot the run record beside the output, as codex mode does: the live
   # one keeps changing during the review.
   SNAPSHOT="${OUT%.json}.run-record.md"
-  git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" >"$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
+  git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" | clean_output >"$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
   inputs "$REPO (its working tree may be newer than the head: read the head with \`git show $HEAD_SHA:<path>\`, or check it out in a worktree of your own)" \
     "$SNAPSHOT (snapshot taken when this review started)" \
     "write the JSON to $OUT, then run: bash $SKILL_DIR/scripts/validate-findings.sh $OUT"
@@ -138,7 +138,7 @@ safe_worktree_add "$REPO" "$TREE" "$HEAD_SHA" ||
   die 70 "cannot check out $HEAD_SHA in a temporary worktree"
 
 # Snapshot the run record: the live one keeps changing during the review.
-git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" >"$WORK/run-record.md"
+git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" | clean_output >"$WORK/run-record.md" || die 70 "cannot snapshot the run record"
 inputs "$TREE (a checkout of the head; the original is $REPO)" \
   "$WORK/run-record.md (snapshot taken when this review started)" \
   "your final message, as JSON" >"$WORK/prompt.md"

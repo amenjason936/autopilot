@@ -1,6 +1,31 @@
 # Changelog
 
-## Unreleased — independent review round (issue #8), trust fixes
+## 0.3.0-rc.1 — 2026-10-14
+
+Everything below down to 0.2.0-rc.2, grouped by the round that produced it.
+
+### independent review round (issue #8), robustness and consistency
+
+- A backgrounded gate or mutant (`cmd &` in a non-interactive shell starts with
+  SIGINT ignored) re-execs once with the default disposition, so SIGINT stops it
+  with exit 130 and nothing published.
+- `verify-evidence.sh` refuses unregistered files beside evidence (the same rule
+  as `record_scope.py`) and only notes unpublished partials.
+- Degraded runs snapshot the original checkout, ignored files included, and fail
+  when a command added, removed or changed a file there.
+- Runs record their owner; the next run removes scratch directories and worktree
+  registrations left by runs killed with SIGKILL, then prunes.
+- Evidence is published without replacing a file that appeared under the final
+  name; scratch cleanup resets permissions recursively.
+- host-doctor validates the policy first (exit 64 when invalid) and probes the
+  backend the policy names.
+- The record snapshot beside a review request is redacted; the leftover-partial
+  message says to establish what the interrupted command did before rerunning.
+- MIT `LICENSE` added and installed; docs reconciled (lite classes, approved
+  fallback vs strict isolation, command shell semantics, review identity scope,
+  API endpoint naming); version 0.3.0-rc.1.
+
+### independent review round (issue #8), trust fixes
 
 - Command output can no longer forge evidence conclusions: tools read a
   result only from the runner-written footer, and backtick runs in commands,
@@ -18,7 +43,7 @@
   change appends inert lines; an added `exit 0`, `skip`, `|| true` and the like
   mean a rerun.
 
-## Unreleased — lite small-change and host adaptation
+### lite small-change and host adaptation
 
 - `--lite` gains `risk: small-change` for a small code fix: at most 4 files,
   40 changed lines outside tests, 150 in all, no dependency/build/CI/security
@@ -40,7 +65,7 @@
   host without a usable backend runs with its red lines disclosed as NOT
   OS-enforced and network reduced to dead proxy variables, instead of parking.
 
-## Unreleased — findings from the fourth and fifth end-to-end runs
+### findings from the fourth and fifth end-to-end runs
 
 The token-watcher (Node) and CardiacTrim (Python) runs both landed, with 72 and
 102 recorded mutants, most of them reruns. These changes target that cost and the
@@ -74,7 +99,7 @@ review snapshot size.
   a review budget; operational review failures are not finding rows; a Python
   migration example (venv in `read_paths`, `-B`, `-p no:cacheprovider`).
 
-## Unreleased — cross-run helper trust and a cloud model reviewer
+### cross-run helper trust and a cloud model reviewer
 
 - Gates compare the helper inventory with a trusted reference before running:
   the takeoff pin `AUTOPILOT_HELPER_PIN`, a clean Git checkout of the skill, or
@@ -88,7 +113,7 @@ review snapshot size.
   The prompt is redacted before upload, supplied files are listed with hashes,
   replies are validated and sealed, and upload needs `REVIEW_API_UPLOAD=approved`.
 
-## Unreleased — findings from the sandboxed token-watcher end-to-end run
+### findings from the sandboxed token-watcher end-to-end run
 
 - Ask the adversary for mutant targets before the first recorded mutant wave,
   and explore with scratch evidence outside the repository, so a detector fix no
@@ -109,7 +134,7 @@ review snapshot size.
   pinned snapshot read-only; `current:` and the resume table share one vocabulary;
   `validate-findings.sh` documents its seven-argument form.
 
-## Unreleased — fallback integrity and sandbox-aware tests
+### fallback integrity and sandbox-aware tests
 
 - Detect persistent changes to every helper and frozen execution control before
   and after each command; keep the checker and expected hashes in parent memory,
@@ -123,7 +148,7 @@ review snapshot size.
   forced-unavailable backends. Add integrity regressions and four targeted negative
   controls for helper/control validation and the trusted checker path.
 
-## Unreleased — maintainer compatibility fixes
+### maintainer compatibility fixes
 
 - **Breaking migration:** existing contracts require a committed JSON policy;
   gates use fresh worktrees without untracked dependencies. See REFERENCE.md for
@@ -139,7 +164,7 @@ review snapshot size.
 - Separate default Ubuntu compatibility CI from enforced-backend validation and
   publish run results as CI artifacts.
 
-## Unreleased — multi-host installation
+### multi-host installation
 
 - Add a full-package installer for Codex, Claude Code, ZCode shared user skills
   and ccmr (`~/.claude-gateway/skills`), with explicit replacement, retained old

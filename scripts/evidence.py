@@ -142,6 +142,22 @@ def main():
         if missing:
             print(f'MANIFEST lists missing files: {", ".join(missing)}', file=sys.stderr)
             raise ValueError('incomplete evidence directory')
+        # The same directory rule as record_scope.py: nothing unregistered may
+        # sit beside evidence and look like it (issue #8 item 6). Unpublished
+        # partials are reported, never counted.
+        extra, partial = [], []
+        for item in sorted(directory.iterdir(), key=lambda p: p.name):
+            if item.name == 'MANIFEST' or (item.name == '.autopilot.lock' and item.is_dir()):
+                continue
+            if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*\.md\.partial(?:\.[0-9]{8}T[0-9]{6}Z\.[0-9]+)?', item.name):
+                partial.append(item.name)
+            elif item.name not in known:
+                extra.append(item.name)
+        if extra:
+            print(f'unregistered files in the evidence directory: {", ".join(extra)}', file=sys.stderr)
+            raise ValueError('unregistered evidence')
+        if partial:
+            print(f'note: unpublished partials (not evidence): {", ".join(partial)}', file=sys.stderr)
         for name in wanted:
             if '/' in name:
                 print(f'name evidence files relative to the directory: {name!r} -> {pathlib.Path(name).name!r}', file=sys.stderr)

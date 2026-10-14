@@ -105,13 +105,35 @@ runner_cleanup() {
     fi
   done
   if [ -n "${WORK:-}" ]; then
-    [ ! -d "$WORK/denied-directory" ] || chmod 700 "$WORK/denied-directory"
+    # Commands may leave read-only directories at any depth.
+    chmod -R u+rwx "$WORK" 2>/dev/null || true
     rm -rf "$WORK"
   fi
   if [ "$LOCKED" -eq 1 ]; then
     rm -f "$EVIDENCE_DIR/.autopilot.lock/owner"
     rmdir "$EVIDENCE_DIR/.autopilot.lock" 2>/dev/null || true
   fi
+}
+
+# A run killed with SIGKILL leaves its scratch directory and worktree
+# registrations behind. Remove those whose recorded owner is no longer alive
+# (same user only; directories without an owner file are left alone), then
+# prune stale registrations (issue #8 item 8).
+runner_sweep_orphans() {
+  local dir pid tree swept=0
+  for dir in "${TMPDIR:-/tmp}"/autopilot-run.*; do
+    [ -d "$dir" ] && [ -O "$dir" ] && [ -f "$dir/owner" ] || continue
+    pid="$(head -n 1 "$dir/owner" 2>/dev/null)"
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    ! kill -0 "$pid" 2>/dev/null || continue
+    while IFS= read -r tree; do
+      case "$tree" in "$dir"/*) git -C "$TOP" worktree remove --force "$tree" >/dev/null 2>&1 || true ;; esac
+    done < <(git -C "$TOP" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+    chmod -R u+rwx "$dir" 2>/dev/null || true
+    rm -rf "$dir" && swept=$((swept + 1))
+  done
+  git -C "$TOP" worktree prune 2>/dev/null || true
+  [ "$swept" -eq 0 ] || printf 'removed %s scratch director%s left by killed runs\n' "$swept" "$([ "$swept" -eq 1 ] && echo y || echo ies)" >&2
 }
 
 runner_options() {
@@ -128,7 +150,7 @@ runner_options() {
 }
 
 runner_init() {
-  require git perl python3 jq
+  require git perl python3 jq ln
   INTEGRITY_PYTHON="$(command -v python3)"
   INTEGRITY_CODE="$(<"$SCRIPT_DIR/integrity.py")" || runner_integrity_abort
   [ -n "$INTEGRITY_CODE" ] || runner_integrity_abort
@@ -232,11 +254,13 @@ runner_lock() {
   [ ! -L "$PARTIAL" ] || die 73 'symlink partial refused'
   [ ! -e "$PARTIAL" ] || [ -f "$PARTIAL" ] || die 73 'partial must be a regular file'
   if [ -e "$PARTIAL" ]; then
-    [ "${GATE_RERUN_POLICY:-}" = safe ] || die 76 "resume parked: $LABEL.md.partial is left by an interrupted or aborted gate; rerun under a new label, or set GATE_RERUN_POLICY=safe once the commands are known to be rerun-safe"
+    [ "${GATE_RERUN_POLICY:-}" = safe ] || die 76 "resume parked: $LABEL.md.partial is left by an interrupted or aborted gate; first establish what the interrupted command already did (receipts, side effects); only then rerun under a new label, or set GATE_RERUN_POLICY=safe for commands known to be rerun-safe"
     mv "$PARTIAL" "$PARTIAL.$(date -u +%Y%m%dT%H%M%SZ).$$" || die 70 'cannot archive partial'
   fi
+  runner_sweep_orphans
   WORK="$(make_temp_dir run)" || exit 70
   WORK="$(resolve_path "$WORK")" || exit 70
+  printf '%s\n' "$$" >"$WORK/owner" || die 70 'cannot record run ownership'
   case "$WORK/" in "$TOP/"*|"$GIT_COMMON/"*) die 64 'runner scratch must be outside source and Git storage' ;; esac
   OUTPUT="$WORK/output"
   printf '%s\n' "$POLICY" >"$WORK/policy.json" || die 70 'cannot freeze policy'
@@ -251,6 +275,9 @@ runner_may_degrade() {
 runner_degrade() {
   BACKEND=none
   SANDBOX_ARGS=()
+  if [ "$SANDBOX" != env-clean ] && [ -z "$CHECKOUT_DIGEST" ]; then
+    CHECKOUT_DIGEST="$(runner_checkout_digest)" || die 70 'cannot snapshot the original checkout'
+  fi
   if [ "$SANDBOX" != env-clean ] && [ "$(printf '%s' "$POLICY" | jq -r .deny_network)" = true ]; then
     RUN_ENV+=(http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9
       HTTPS_PROXY=http://127.0.0.1:9 ALL_PROXY=http://127.0.0.1:9 all_proxy=http://127.0.0.1:9 NO_PROXY= no_proxy=
@@ -489,8 +516,20 @@ runner_source_unchanged() {
   python3 "$SCRIPT_DIR/source_state.py" verify "$TREE" "$WORK/policy.json" "$SOURCE_STATE"
 }
 
+# Degraded runs (restrictive policy, no OS backend) cannot stop a command from
+# writing into the original checkout, so they at least detect it: every file,
+# ignored ones included, before and after (issue #8 item 10).
+CHECKOUT_DIGEST=
+runner_checkout_digest() {
+  python3 "$SCRIPT_DIR/source_state.py" checkout "$TOP" "$EVIDENCE_DIR" ${RECORD:+"$RECORD"} ${RECORD_RELS[@]+"${RECORD_RELS[@]/#/$TOP/}"}
+}
+
 runner_unchanged() {
   [ "$(git -C "$TOP" rev-parse HEAD)" = "$COMMIT" ] || return 1
+  if [ -n "$CHECKOUT_DIGEST" ] && [ "$(runner_checkout_digest)" != "$CHECKOUT_DIGEST" ]; then
+    printf '%s\n' '- original checkout changed during a degraded run (a file was added, removed or modified, ignored files included)' >>"$PARTIAL"
+    return 1
+  fi
   local state
   state="$(cd "$TOP" && git_code status --porcelain)" || return 1
   [ -z "$state" ] || return 1
@@ -507,7 +546,13 @@ runner_finish() {
   local result="$2"
   printf -- '- finished: %s\n- result: %s\n' "$(date -u +%FT%TZ)" "$result" >>"$PARTIAL" || die 70 'cannot write evidence footer'
   python3 "$SCRIPT_DIR/evidence.py" complete "$PARTIAL" "$result" || die 70 'incomplete evidence cannot be published'
-  mv "$PARTIAL" "$EVIDENCE" || die 70 'cannot finalize evidence'
+  # No-replace publish: a hard link fails if the final name appeared meanwhile
+  # (a writer that ignored the directory lock), instead of overwriting it.
+  if ! ln "$PARTIAL" "$EVIDENCE" 2>/dev/null; then
+    [ ! -e "$EVIDENCE" ] || die 73 'evidence appeared under the final name during the run; nothing overwritten'
+    die 70 'cannot finalize evidence'
+  fi
+  rm -f "$PARTIAL" || die 70 'cannot finalize evidence'
   python3 "$SCRIPT_DIR/evidence.py" add "$EVIDENCE_DIR" "$(basename "$EVIDENCE")" || die 70 'cannot append MANIFEST; evidence is incomplete'
   printf '%s\nevidence: %s (tested commit %s)\n' "$result" "$EVIDENCE" "$TESTED" | clean_output
   exit "$1"

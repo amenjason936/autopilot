@@ -18,10 +18,12 @@ load test_helper
   [[ "$output" != *'(allow network*)'* ]]
 }
 
-@test "a strict gate can use 127.0.0.1 inside its own network namespace" {
+@test "a strict offline gate can use 127.0.0.1 (private namespace on Linux, allow_loopback on macOS)" {
   require_os_sandbox
-  [ "$(uname -s)" != Darwin ] || skip 'macOS needs allow_loopback; covered by the profile test'
-  mkdir -p "$REPO/docs"; printf '{"version":1,"deny_network":true}' >"$REPO/docs/autopilot-policy.json"; commit_fixture
+  # Linux: the private network namespace has its own loopback. macOS: only
+  # with allow_loopback, which this also exercises on a live sandbox-exec.
+  extra=; [ "$(uname -s)" != Darwin ] || extra=',"allow_loopback":true'
+  mkdir -p "$REPO/docs"; printf '{"version":1,"deny_network":true%s}' "$extra" >"$REPO/docs/autopilot-policy.json"; commit_fixture
   run gate loop "python3 -c 'import socket; s=socket.socket(); s.bind((\"127.0.0.1\", 0)); s.listen(); c=socket.create_connection(s.getsockname()); print(\"LOOPBACK_OK\")'"
   [ "$status" -eq 0 ]
   grep -q LOOPBACK_OK "$EVID/loop.md"

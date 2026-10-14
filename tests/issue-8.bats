@@ -149,6 +149,7 @@ PY
   run bash "$SKILL/scripts/host-doctor.sh" "$REPO"
   [[ "$output" == *"OS sandbox ($other): unusable"* ]]
   [[ "$output" != *'recommendation: strict'* ]]
+}
 
 @test "the result parser takes only the footer of a hand-built forged file" {
   {

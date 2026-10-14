@@ -95,8 +95,11 @@ if POLICY="$(python3 "$SCRIPT_DIR/policy.py" select "$REPO" HEAD 2>/dev/null)"; 
   RESTRICTIVE="$(printf '%s' "$POLICY" | jq -r '.effective | if .deny_network or (.deny_paths | length > 0) then "yes" else "no" end')"
   FALLBACK="$(printf '%s' "$POLICY" | jq -r '.effective.fallback // "park"')"
   printf 'policy: %s (restrictive: %s; fallback: %s)\n' "$(printf '%s' "$POLICY" | jq -r '.path // "none (defaults)"')" "$RESTRICTIVE" "$FALLBACK"
+elif git -C "$REPO" cat-file -e HEAD:docs/autopilot.md 2>/dev/null; then
+  printf 'policy: contract present but no valid committed docs/autopilot-policy.json at HEAD — gates will refuse; commit the policy, then run host-doctor again\n'
+  RESTRICTIVE=yes
 else
-  printf 'policy: none readable at %s HEAD; recommendation assumes a restrictive one\n' "$REPO"
+  printf 'policy: none at %s HEAD (no contract yet); recommendation assumes a restrictive one\n' "$REPO"
   RESTRICTIVE=yes
 fi
 

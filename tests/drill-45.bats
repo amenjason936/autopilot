@@ -210,3 +210,42 @@ restrictive_policy() {
   run bash -c "printf '{\"version\":1,\"deny_network\":true,\"fallback\":\"env-clean\"}' | python3 '$SKILL/scripts/policy.py'"
   [[ "$output" == *'"fallback": "env-clean"'* ]]
 }
+
+@test "a mutant signature matches coloured output as the evidence shows it" {
+  patch_value
+  export MUTANT_FAILURE_REGEX='^ FAIL  check > value is safe$' MUTANT_FAILURE_EXIT=1
+  run mutant colour "test \"\$(cat value)\" = safe || { printf '\\033[41m\\033[1m FAIL \\033[22m\\033[49m check > value is safe\\n'; exit 1; }"
+  [ "$status" -eq 0 ]
+  grep -q '^- result: KILLED' "$EVID/colour.md"
+}
+
+@test "lite skips generated paths, records its result in evidence, and matches sensitive words not substrings" {
+  mkdir -p "$REPO/src" "$REPO/dist" "$REPO/docs"
+  printf '{"version":1,"generated_paths":["dist"]}' >"$REPO/docs/autopilot-policy.json"
+  printf 'a\n' >"$REPO/src/author.ts"; commit_fixture
+  base="$(git -C "$REPO" rev-parse HEAD)"
+  printf '{"stages":1,"network":false,"publish":false,"risk":"small-change"}' >"$CASE/run.json"
+  printf 'b\n' >"$REPO/src/author.ts"
+  for n in 1 2 3 4 5; do seq 30 >"$REPO/dist/out$n.js"; done
+  commit_fixture
+  run bash "$SKILL/scripts/check-lite.sh" "$REPO" "$base" HEAD "$CASE/run.json"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'5 generated file(s) under dist not counted'* ]]
+  export AUTOPILOT_BASE="$base" AUTOPILOT_RUN_CONFIG="$CASE/run.json"
+  run bash "$SKILL/scripts/run-gate.sh" --lite "$REPO" "$EVID/lite-gate.md" lite-gate true
+  [ "$status" -eq 0 ]
+  grep -q '^- lite: lite eligible (small-change)' "$EVID/lite-gate.md"
+  unset AUTOPILOT_BASE AUTOPILOT_RUN_CONFIG
+  printf 'x\n' >"$REPO/src/authMiddleware.ts"; commit_fixture
+  run bash "$SKILL/scripts/check-lite.sh" "$REPO" "$base" HEAD "$CASE/run.json"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'safety-sensitive change: src/authMiddleware.ts'* ]]
+  run bash "$SKILL/scripts/suggest-mutants.sh" "$REPO" "$base" HEAD "$CASE/cands"
+  ! grep -q '"dist/' "$CASE/cands/candidates.json"
+}
+
+@test "host doctor tells a missing policy from a missing contract" {
+  mkdir -p "$REPO/docs"; printf '# contract\n' >"$REPO/docs/autopilot.md"; commit_fixture
+  run bash "$SKILL/scripts/host-doctor.sh" "$REPO"
+  [[ "$output" == *'contract present but no valid committed docs/autopilot-policy.json'* ]]
+}

@@ -32,6 +32,7 @@ TARGETS = [
     ('p0-10-ignored-evidence', 'scripts/evidence.py', '    if ignored(directory, name):', '    if False:', 'register refuses a name the repository ignores', 'tests/drill-45.bats'),
     ('p0-11-lite-small-change', 'scripts/lite.py', "            if risk == 'small-change':", '            if False:', 'lite small-change admits a small code fix', 'tests/drill-45.bats'),
     ('p0-12-fallback-approval', 'scripts/runner.sh', '[ "$(printf \'%s\' "$POLICY" | jq -r \'.fallback // "park"\')" = env-clean ]', 'true', 'a restrictive policy parks without a usable backend', 'tests/drill-45.bats'),
+    ('p0-13-plain-signature', 'scripts/failure_signature.py', "return ANSI.sub('', pathlib.Path(path).read_text(encoding='utf-8'))", "return pathlib.Path(path).read_text(encoding='utf-8')", 'a mutant signature matches coloured output', 'tests/drill-45.bats'),
     ('p0-7-lock', 'scripts/runner.sh', "|| die 73 'evidence directory locked; inspect owner before recovering a stale lock'", '|| true', 'directory lock rejects', 'tests/gate.bats'),
     ('p0-7-partial', 'scripts/runner.sh', 'mv "$PARTIAL" "$PARTIAL.$(date -u +%Y%m%dT%H%M%SZ).$$"', ': >"$PARTIAL"', 'partial resume archives', 'tests/gate.bats'),
     ('c1-env-inheritance', 'scripts/runner.sh', 'RUN_ENV=(env -i ', 'RUN_ENV=(env ', 'clean environment drops ambient', 'tests/gate.bats'),
@@ -46,7 +47,7 @@ TARGETS = [
     ('supplement-review-policy', 'scripts/review_identity.py', "if policy['sandbox'] != 'env-clean' or policy['deny_network'] or policy['deny_paths']:", 'if False:', 'restrictive policy parks cloud dispatch', 'tests/supplements.bats'),
     ('supplement-resume', 'scripts/runner.sh', '[ "${GATE_RERUN_POLICY:-}" = safe ]', 'true', 'interrupted side effects stay parked', 'tests/supplements.bats'),
 
-    ('supplement-lite-risk', 'scripts/lite.py', 'if any(part in lower for part in SENSITIVE):', 'if False:', 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),
+    ('supplement-lite-risk', 'scripts/lite.py', 'if SENSITIVE & words(path) or lower.startswith(SENSITIVE_PREFIXES):', 'if False:', 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),
     ('author-output-symlink', 'scripts/runner.sh', 'python3 "$SCRIPT_DIR/evidence.py" path "$2"', 'true', 'committed evidence symlink cannot redirect writer', 'tests/supplements.bats'),
     ('rc2-control-root', 'scripts/policy.py' if sys.platform == 'darwin' else 'scripts/runner.sh', 'tree, source, gitdir, work, helpers, evidence' if sys.platform == 'darwin' else '--ro-bind \"$WORK\" \"$WORK\"', 'tree, source, gitdir' if sys.platform == 'darwin' else '--bind \"$WORK\" \"$WORK\"', 'commands cannot rewrite runner controls', 'tests/rc2.bats'),
     ('rc2-policy-selection', 'scripts/policy.py', "path = os.environ.get('GATE_POLICY', 'docs/autopilot-policy.json')", "path = 'docs/autopilot-policy.json'", 'alternate policy controls review dispatch', 'tests/rc2.bats'),

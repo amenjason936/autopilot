@@ -5,9 +5,19 @@ import re
 import sys
 
 
+# Match what the evidence shows: colour and cursor escapes are stripped there
+# (vitest colours output even without a terminal), so signatures are written
+# against plain text.
+ANSI = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\r(?!\n)')
+
+
+def plain(path):
+    return ANSI.sub('', pathlib.Path(path).read_text(encoding='utf-8'))
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'activity':
-        text = pathlib.Path(sys.argv[2]).read_text(encoding='utf-8')
+        text = plain(sys.argv[2])
         plans = re.findall(r'^1\.\.([0-9]+)(?:\s.*)?$', text, re.M)
         cases = re.findall(r'^(?:not )?ok(?:[ \t]+[^\n]*)?$', text, re.M)
         active = [row for row in cases if not re.search(r'#\s*skip\b', row, re.I)]
@@ -23,7 +33,7 @@ def main():
     if mode == 'validate' and len(sys.argv) == 4:
         return 0
     if mode == 'match' and len(sys.argv) == 6:
-        text = pathlib.Path(sys.argv[3]).read_text(encoding='utf-8')
+        text = plain(sys.argv[3])
         return 0 if int(sys.argv[4]) == expected and pattern.search(text) else 1
     return 64
 

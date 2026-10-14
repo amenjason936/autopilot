@@ -151,9 +151,18 @@ def main():
         files = git('diff', '--no-ext-diff', '--no-renames', '--name-only', '-z', '--diff-filter=AM', base, head).split(b'\0')
         candidates = []
         skipped_tests = 0
+        generated = ['*.min.js', '*.map', '*.d.ts']
+        try:
+            committed = json.loads(git('show', f'{head}:docs/autopilot-policy.json'))
+            generated += [v.strip('/') + '/*' for v in committed.get('generated_paths', []) if isinstance(v, str)]
+        except (subprocess.CalledProcessError, ValueError, AttributeError):
+            pass
         for name in filter(None, files):
             file = name.decode('utf-8')
             if not re.fullmatch(r'[A-Za-z0-9_./-]+', file) or pathlib.Path(file).suffix not in ('.py', '.sh') + C_LIKE:
+                continue
+            # Build output is checked for freshness, not mutated: tests run the source.
+            if any(fnmatch.fnmatch(file, p) for p in generated):
                 continue
             # Mutating the detector itself rarely proves anything about the code.
             if not include_tests and any(fnmatch.fnmatch(file, p) for p in TEST_PATTERNS):

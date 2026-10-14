@@ -10,6 +10,7 @@ BASELINE_TREE=
 PARTIAL=
 DRY_RUN=0
 LITE=0
+LITE_RESULT=
 
 # Never load a checker or redactor from disk after detecting helper tampering.
 # These values are kept in this parent shell and are not exported to commands.
@@ -187,7 +188,7 @@ runner_init() {
   while IFS= read -r name; do ENV_NAMES+=("$name"); done < <(printf '%s' "$POLICY" | jq -r '.env[]')
   if [ "$LITE" -eq 1 ]; then
     if ! { [ -n "${AUTOPILOT_BASE:-}" ] && [ -n "${AUTOPILOT_RUN_CONFIG:-}" ]; }; then die 64 'lite requires AUTOPILOT_BASE and AUTOPILOT_RUN_CONFIG'; fi
-    bash "$SCRIPT_DIR/check-lite.sh" "$TOP" "$AUTOPILOT_BASE" "$COMMIT" "$AUTOPILOT_RUN_CONFIG" || die 64 'lite eligibility failed'
+    LITE_RESULT="$(bash "$SCRIPT_DIR/check-lite.sh" "$TOP" "$AUTOPILOT_BASE" "$COMMIT" "$AUTOPILOT_RUN_CONFIG")" || die 64 "lite eligibility failed: $LITE_RESULT"
   fi
 }
 
@@ -408,6 +409,7 @@ runner_header() {
     printf -- '- tested commit: %s\n- HEAD: %s\n- workdir: %s\n- sandbox: %s\n' "$TESTED" "$COMMIT" "$WORKDIR" "$SANDBOX"
     printf -- '- started: %s\n- recorded by sha256: %s\n' "$(date -u +%FT%TZ)" "$(sha256_of "$SCRIPT_DIR/$(basename "$0")")"
     printf -- '- policy: %s\n' "$POLICY"
+    [ "$LITE" -ne 1 ] || printf -- '- lite: %s (base %s, run config sha256 %s)\n' "$LITE_RESULT" "$AUTOPILOT_BASE" "$(sha256_of "$AUTOPILOT_RUN_CONFIG")"
     printf -- '- helper inventory sha256: %s\n- helper reference: %s\n- frozen controls sha256: %s\n' "$HELPER_DIGEST" "$HELPER_REFERENCE" "$CONTROL_DIGEST"
     local helper helper_hash
     for helper in lib.sh runner.sh redact.py policy.py evidence.py record_scope.py failure_signature.py source_state.py integrity.py; do

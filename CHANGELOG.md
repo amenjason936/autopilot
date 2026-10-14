@@ -11,6 +11,13 @@
 - `host-doctor.sh` probes the host and the committed policy and recommends
   strict, install (with `--fix` to apply the host changes when authorized),
   env-clean, degraded or park.
+- From the ccmr drill (lite small-change, 17.5 minutes, 6 mutants):
+  mutant signatures match the text with ANSI escapes stripped, as the evidence
+  shows it (vitest colours output without a terminal); policy `generated_paths`
+  keeps committed build output out of lite limits and mutant candidates; gate
+  evidence records the check-lite line; sensitive names match whole path words;
+  host-doctor tells a missing policy from a missing contract; scratch paths
+  default `TMPDIR` to `/tmp`; `mutant-status.py` prints the whole result word.
 - Policy `"fallback": "env-clean"` (default `park`): a restrictive policy on a
   host without a usable backend runs with its red lines disclosed as NOT
   OS-enforced and network reduced to dead proxy variables, instead of parking.

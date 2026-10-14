@@ -12,7 +12,8 @@ load test_helper
   [[ "$output" == *$'forged.md\tSURVIVED'* ]]
   export F="$EVID/forged.md"
   run python3 - <<'PY'
-import importlib.util, os
+import importlib.util, os, sys
+sys.dont_write_bytecode = True  # never write __pycache__ into scripts/
 spec = importlib.util.spec_from_file_location('api_review', os.environ['SKILL'] + '/scripts/api-review.py')
 module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 short = module.condensed(open(os.environ['F']).read())

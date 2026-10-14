@@ -20,8 +20,8 @@ load test_helper
   [[ "$output" != *private-value* ]]
   [ -z "$output" ]
   run gate badrule 'echo private-value'
-  [ "$status" -eq 70 ]
-  [[ "$output" == *'diagnostic withheld: the redactor failed'* || "$output" == *'REDACT_REGEX'* ]]
+  [ "$status" -eq 64 ]
+  [[ "$output" == *'invalid REDACT_REGEX'* ]]
   [[ "$output" != *private-value* ]]
   [ ! -e "$EVID/badrule.md" ]
   unset REDACT_REGEX

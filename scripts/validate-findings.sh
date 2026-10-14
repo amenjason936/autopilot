@@ -53,5 +53,10 @@ esac
 # A one-argument call validates structure only and cannot authorize review reuse.
 if [ $# -eq 7 ]; then
   SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+  # A fallback reviewer's output is sealed deliberately, after this structure
+  # check passes; the identity check needs that receipt (#9).
+  if [ ! -e "$1.receipt.json" ]; then
+    die 70 "no receipt for $1: after checking its structure, seal it with: python3 $SKILL_DIR/scripts/review_identity.py seal $1 $2"
+  fi
   python3 "$SKILL_DIR/scripts/review_identity.py" verify "$@" "$SKILL_DIR" || die 70 'findings do not belong to the expected review request and snapshot'
 fi

@@ -118,7 +118,7 @@ git -C "$REPO" cat-file -e "$HEAD_SHA:$RECORD_REL" 2>/dev/null || die 66 'run re
 
 python3 "$SKILL_DIR/scripts/review_identity.py" create "$REPO" "$BASE_SHA" "$HEAD_SHA" "$RECORD_REL" "$SCOPE" "$SKILL_DIR" "$REQUEST"
 if [ "$PROMPT_ONLY" -eq 0 ]; then
-  python3 "$SKILL_DIR/scripts/review_identity.py" dispatch "$REPO" "$HEAD_SHA" "$SKILL_DIR" || die 77 'review parked: the committed restrictive policy cannot be enforced by this cloud-review launcher; use the approved snapshot-only review path in REFERENCE.md'
+  python3 "$SKILL_DIR/scripts/review_identity.py" dispatch "$REPO" "$HEAD_SHA" "$SKILL_DIR" || die 77 'review parked: the committed policy restricts project commands; with only deny_network, set CODEX_REVIEW_DISPATCH=approved when the contract approves Codex review; with deny_paths, use the snapshot-only review path in REFERENCE.md'
 fi
 
 if [ "$PROMPT_ONLY" -eq 1 ]; then
@@ -128,7 +128,7 @@ if [ "$PROMPT_ONLY" -eq 1 ]; then
   git -C "$REPO" show "$HEAD_SHA:$RECORD_REL" | clean_output >"$SNAPSHOT" || die 70 "cannot snapshot the run record to $SNAPSHOT"
   inputs "$REPO (its working tree may be newer than the head: read the head with \`git show $HEAD_SHA:<path>\`, or check it out in a worktree of your own)" \
     "$SNAPSHOT (snapshot taken when this review started)" \
-    "write the JSON to $OUT, then run: bash $SKILL_DIR/scripts/validate-findings.sh $OUT"
+    "return the JSON document as your final message; the launcher saves it to $OUT and validates it. Write the file yourself only if you can write files (bash $SKILL_DIR/scripts/validate-findings.sh $OUT checks it)"
   exit 0
 fi
 

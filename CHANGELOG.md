@@ -4,6 +4,20 @@
 
 Everything below down to 0.2.0-rc.2, grouped by the round that produced it.
 
+### field report from a macOS full run (issue #9)
+
+- The helper inventory is keyed by directory name, so a skill reached through a
+  symlinked directory pins identically.
+- `sandbox-exec` profiles let a process signal its own children; policy
+  `"allow_loopback": true` admits localhost under `deny_network` on macOS
+  (documented: it reaches host services; Linux already has a private loopback).
+- Policy `"share_dirs"`: ignored dependency directories linked read-only from
+  the checkout into each worktree, disclosed in evidence.
+- Codex dispatch under a network-only policy runs with
+  `CODEX_REVIEW_DISPATCH=approved`; `deny_paths` still parks it. `--prompt-only`
+  asks for the JSON as the final message; the validator names the seal step.
+- REFERENCE documents generator/drift checks against `$AUTOPILOT_OUTPUT`.
+
 ### independent review round (issue #8), robustness and consistency
 
 - A backgrounded gate or mutant (`cmd &` in a non-interactive shell starts with

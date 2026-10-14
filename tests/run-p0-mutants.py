@@ -40,6 +40,8 @@ TARGETS = [
     ('p0-18-signal-restore', 'scripts/lib.sh', '  if [ -z "${AUTOPILOT_SIGNALS_RESTORED:-}" ]; then', '  if false; then', 'a backgrounded gate stops on SIGINT', 'tests/issue-8.bats'),
     ('p0-19-verify-extras', 'scripts/evidence.py', '            elif item.name not in known:', '            elif False:', 'verify refuses unregistered files', 'tests/issue-8.bats'),
     ('p0-20-degraded-checkout', 'scripts/runner.sh', 'if [ -n "$CHECKOUT_DIGEST" ] && [ "$(runner_checkout_digest)" != "$CHECKOUT_DIGEST" ]; then', 'if false; then', 'a degraded run fails when a command writes', 'tests/issue-8.bats'),
+    ('p0-21-pin-by-name', 'scripts/integrity.py', 'rows = [[pathlib.Path(name).name, snapshot(pathlib.Path(name))]', 'rows = [[name, snapshot(pathlib.Path(name))]', 'the helper digest does not depend on the path', 'tests/issue-9.bats'),
+    ('p0-22-dispatch-approval', 'scripts/review_identity.py', "if restrictive and os.environ.get('CODEX_REVIEW_DISPATCH') != 'approved':", 'if False:', 'codex dispatch under a network-only ban needs explicit approval', 'tests/issue-9.bats'),
     ('p0-7-lock', 'scripts/runner.sh', "|| die 73 'evidence directory locked; inspect owner before recovering a stale lock'", '|| true', 'directory lock rejects', 'tests/gate.bats'),
     ('p0-7-partial', 'scripts/runner.sh', 'mv "$PARTIAL" "$PARTIAL.$(date -u +%Y%m%dT%H%M%SZ).$$"', ': >"$PARTIAL"', 'partial resume archives', 'tests/gate.bats'),
     ('c1-env-inheritance', 'scripts/runner.sh', 'RUN_ENV=(env -i ', 'RUN_ENV=(env ', 'clean environment drops ambient', 'tests/gate.bats'),
@@ -51,7 +53,7 @@ TARGETS = [
     ('supplement-failure-signature', 'scripts/run-mutant.sh', 'if ! { [ "$PHASE_MATCHED" -eq 1 ] && [ "$PHASE_UNEXPECTED" -eq 0 ]; }; then', 'if false; then', 'failure signature rejects unrelated errors', 'tests/supplements.bats'),
     ('supplement-record-scope', 'scripts/runner.sh', 'python3 "$SCRIPT_DIR/record_scope.py" "$TOP" "$COMMIT" "$EVIDENCE_DIR" "$RECORD"', 'cat >/dev/null', 'record exclusions reject undeclared', 'tests/supplements.bats'),
     ('supplement-review-identity', 'scripts/review_identity.py', "if (job['version'] != 1", "if False and (job['version'] != 1", 'review identity rejects stale head scope', 'tests/supplements.bats'),
-    ('supplement-review-policy', 'scripts/review_identity.py', "if policy['sandbox'] != 'env-clean' or policy['deny_network'] or policy['deny_paths']:", 'if False:', 'restrictive policy parks cloud dispatch', 'tests/supplements.bats'),
+    ('supplement-review-policy', 'scripts/review_identity.py', "if policy['deny_paths']:", 'if False:', 'codex dispatch under a network-only ban needs explicit approval', 'tests/issue-9.bats'),
     ('supplement-resume', 'scripts/runner.sh', '[ "${GATE_RERUN_POLICY:-}" = safe ]', 'true', 'interrupted side effects stay parked', 'tests/supplements.bats'),
 
     ('supplement-lite-risk', 'scripts/lite.py', 'if SENSITIVE & words(path) or lower.startswith(SENSITIVE_PREFIXES):', 'if False:', 'lite refuses one-line runtime and safety instruction edits', 'tests/supplements.bats'),

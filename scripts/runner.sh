@@ -136,6 +136,25 @@ runner_sweep_orphans() {
   [ "$swept" -eq 0 ] || printf 'removed %s scratch director%s left by killed runs\n' "$swept" "$([ "$swept" -eq 1 ] && echo y || echo ies)" >&2
 }
 
+# share_dirs: ignored dependency directories of the original checkout, linked
+# read-only into each fresh worktree instead of installed there (#9). Only
+# directories Git ignores and that are not tracked at the pinned commit.
+SHARED=()
+runner_share_dirs() {
+  local name
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    ! git -C "$TOP" cat-file -e "$COMMIT:$name" 2>/dev/null || die 64 "share_dirs entry is tracked source: $name"
+    git -C "$TOP" check-ignore -q -- "$name" || die 64 "share_dirs entry is not ignored by Git: $name"
+    if [ ! -d "$TOP/$name" ] || [ -L "$TOP/$name" ]; then
+      printf 'share_dirs: %s is not a directory in the checkout; not shared\n' "$name" >&2
+      continue
+    fi
+    SHARED+=("$name")
+    POLICY="$(printf '%s' "$POLICY" | jq -c --arg p "$(resolve_path "$TOP/$name")" '.read_paths += [$p]')" || die 70 'cannot extend read paths'
+  done < <(printf '%s' "$POLICY" | jq -r '.share_dirs[]?')
+}
+
 runner_options() {
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -263,6 +282,7 @@ runner_lock() {
   printf '%s\n' "$$" >"$WORK/owner" || die 70 'cannot record run ownership'
   case "$WORK/" in "$TOP/"*|"$GIT_COMMON/"*) die 64 'runner scratch must be outside source and Git storage' ;; esac
   OUTPUT="$WORK/output"
+  runner_share_dirs
   printf '%s\n' "$POLICY" >"$WORK/policy.json" || die 70 'cannot freeze policy'
 }
 
@@ -290,6 +310,10 @@ runner_tree() {
   runner_integrity_verify
   TREE="$WORK/$name"
   safe_worktree_add "$TOP" "$TREE" "$COMMIT" || die 70 'cannot create pinned worktree'
+  for path in ${SHARED[@]+"${SHARED[@]}"}; do
+    if [ -e "$TREE/$path" ] || [ -L "$TREE/$path" ]; then die 64 "share_dirs entry exists in the worktree: $path"; fi
+    ln -s "$TOP/$path" "$TREE/$path" || die 70 'cannot link a shared directory'
+  done
   RUN_HOME="$WORK/$name-home"
   RUN_TMP="$WORK/$name-tmp"
   RUN_OUTPUT="$WORK/$name-output"
@@ -442,6 +466,7 @@ runner_header() {
     printf -- '- tested commit: %s\n- HEAD: %s\n- workdir: %s\n- sandbox: %s\n' "$TESTED" "$COMMIT" "$WORKDIR" "$SANDBOX"
     printf -- '- started: %s\n- recorded by sha256: %s\n' "$(date -u +%FT%TZ)" "$(sha256_of "$SCRIPT_DIR/$(basename "$0")")"
     printf -- '- policy: %s\n' "$POLICY"
+    [ ${#SHARED[@]} -eq 0 ] || printf -- '- shared read-only from the checkout (not installed from a lockfile): %s\n' "${SHARED[*]}"
     [ "$LITE" -ne 1 ] || printf -- '- lite: %s (base %s, run config sha256 %s)\n' "$LITE_RESULT" "$AUTOPILOT_BASE" "$(sha256_of "$AUTOPILOT_RUN_CONFIG")"
     printf -- '- helper inventory sha256: %s\n- helper reference: %s\n- frozen controls sha256: %s\n' "$HELPER_DIGEST" "$HELPER_REFERENCE" "$CONTROL_DIGEST"
     local helper helper_hash

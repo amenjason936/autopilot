@@ -76,7 +76,7 @@ validates its findings. Their headers and REFERENCE.md document CLI settings.
 
 **Breaking migration:** existing contracts need a committed JSON policy; gates use fresh worktrees without untracked dependencies. Follow [the migration and offline setup guide](REFERENCE.md#migrating-an-existing-project) before upgrading an existing run.
 
-Start with [SKILL.md](SKILL.md), then [the complete local example](examples/README.md). Copy the [contract template](CONTRACT-TEMPLATE.md), define its committed JSON policy, and preview commands before the approved run. [REFERENCE.md](REFERENCE.md) covers every setting, exit code, trust boundary and recovery path. `--lite` has fixed eligibility: ≤50 changed lines, one stage, low-risk documentation only, no network work or publishing; its landing audit remains mandatory.
+Start with [SKILL.md](SKILL.md), then [the complete local example](examples/README.md). Copy the [contract template](CONTRACT-TEMPLATE.md), define its committed JSON policy, and preview commands before the approved run. [REFERENCE.md](REFERENCE.md) covers every setting, exit code, trust boundary and recovery path. `--lite` has fixed eligibility: one stage, no network work or publishing, and either ≤50 lines of documentation or a small code fix (`small-change`: ≤4 files, ≤40 changed lines outside tests, one KILLED mutant per criterion); its landing audit remains mandatory. `host-doctor.sh` tells you whether this host can enforce the project's policy, what to install if not, and when to park.
 
 ## Verify
 

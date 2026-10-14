@@ -32,7 +32,7 @@ def paths(values, aliases=False):
 def normalize(supplied=None):
     if supplied is None:
         supplied = json.load(sys.stdin)
-    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths', 'write_dirs'}
+    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths', 'write_dirs', 'fallback', 'generated_paths'}
     if not isinstance(supplied, dict) or set(supplied) - allowed or supplied.get('version', 1) != 1:
         raise ValueError('unsupported policy schema')
     network = supplied.get('deny_network', False)
@@ -71,8 +71,28 @@ def normalize(supplied=None):
         if (not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_./-]+', value)
                 or value.startswith('/') or any(x in ('', '.', '..', '.git') for x in value.split('/'))):
             raise ValueError('write_dirs must be dedicated repository-relative output directories')
-    return dict(record_paths=records, write_dirs=list(dict.fromkeys(writes)), version=1, sandbox=sandbox, deny_network=network, deny_paths=denied,
-                read_paths=reads, env=names)
+    # What a strict policy does when this host cannot launch its OS sandbox:
+    # park (default), or run env-clean with the red lines disclosed as NOT
+    # OS-enforced. Only the human sets this, in the committed policy.
+    fallback = supplied.get('fallback', 'park')
+    if fallback not in ('park', 'env-clean'):
+        raise ValueError('fallback must be park or env-clean')
+    result = dict(record_paths=records, write_dirs=list(dict.fromkeys(writes)), version=1, sandbox=sandbox, deny_network=network, deny_paths=denied,
+                  read_paths=reads, env=names)
+    if fallback != 'park':
+        result['fallback'] = fallback
+    # Committed build output (e.g. dist/) that a gate proves fresh against its
+    # source: lite does not count it, and mutant candidates skip it.
+    generated = supplied.get('generated_paths', [])
+    if not isinstance(generated, list):
+        raise ValueError('generated_paths must be an array')
+    for value in generated:
+        if (not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_./-]+', value)
+                or value.startswith('/') or any(x in ('', '.', '..', '.git') for x in value.strip('/').split('/'))):
+            raise ValueError('generated_paths must be repository-relative directories')
+    if generated:
+        result['generated_paths'] = [v.strip('/') for v in generated]
+    return result
 
 
 def selected_policy(repo, head):

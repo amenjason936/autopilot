@@ -36,7 +36,7 @@ def parse(path):
     if not text.startswith('# Mutant'):
         return None
     tested = re.search(r'^- tested commit: ([0-9a-f]{40,64})$', text, re.M)
-    result = re.search(r'^- result: (\S+)', text, re.M)
+    result = re.search(r'^- result: ([A-Z]+)', text, re.M)
     mutated = re.search(r'^- mutated files: (.+)$', text, re.M)
     commands = re.findall(r'^## baseline \(unpatched\)\n\n```sh\n(.*?)\n```', text, re.M | re.S)
     if not tested:

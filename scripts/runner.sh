@@ -10,6 +10,7 @@ BASELINE_TREE=
 PARTIAL=
 DRY_RUN=0
 LITE=0
+LITE_RESULT=
 
 # Never load a checker or redactor from disk after detecting helper tampering.
 # These values are kept in this parent shell and are not exported to commands.
@@ -187,7 +188,7 @@ runner_init() {
   while IFS= read -r name; do ENV_NAMES+=("$name"); done < <(printf '%s' "$POLICY" | jq -r '.env[]')
   if [ "$LITE" -eq 1 ]; then
     if ! { [ -n "${AUTOPILOT_BASE:-}" ] && [ -n "${AUTOPILOT_RUN_CONFIG:-}" ]; }; then die 64 'lite requires AUTOPILOT_BASE and AUTOPILOT_RUN_CONFIG'; fi
-    bash "$SCRIPT_DIR/check-lite.sh" "$TOP" "$AUTOPILOT_BASE" "$COMMIT" "$AUTOPILOT_RUN_CONFIG" || die 64 'lite eligibility failed'
+    LITE_RESULT="$(bash "$SCRIPT_DIR/check-lite.sh" "$TOP" "$AUTOPILOT_BASE" "$COMMIT" "$AUTOPILOT_RUN_CONFIG")" || die 64 "lite eligibility failed: $LITE_RESULT"
   fi
 }
 
@@ -235,6 +236,22 @@ runner_lock() {
   printf '%s\n' "$POLICY" >"$WORK/policy.json" || die 70 'cannot freeze policy'
 }
 
+# A strict policy degrades only when the human approved it in the policy.
+runner_may_degrade() {
+  [ "$SANDBOX" = env-clean ] || [ "$(printf '%s' "$POLICY" | jq -r '.fallback // "park"')" = env-clean ]
+}
+
+# Best effort only: well-behaved clients honour a dead proxy; nothing enforces it.
+runner_degrade() {
+  BACKEND=none
+  SANDBOX_ARGS=()
+  if [ "$SANDBOX" != env-clean ] && [ "$(printf '%s' "$POLICY" | jq -r .deny_network)" = true ]; then
+    RUN_ENV+=(http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9
+      HTTPS_PROXY=http://127.0.0.1:9 ALL_PROXY=http://127.0.0.1:9 all_proxy=http://127.0.0.1:9 NO_PROXY= no_proxy=
+      npm_config_offline=true PIP_NO_INDEX=1)
+  fi
+}
+
 runner_tree() {
   local name="$1" path
   runner_integrity_verify
@@ -262,8 +279,8 @@ runner_tree() {
   case "$BACKEND" in
     sandbox-exec)
       if ! command -v sandbox-exec >/dev/null 2>&1 || [ "$(uname -s)" != Darwin ]; then
-        [ "$SANDBOX" = env-clean ] || die 77 'sandbox-exec unavailable; strict policy cannot run'
-        BACKEND=none
+        runner_may_degrade || die 77 'sandbox-exec unavailable; strict policy cannot run (run host-doctor.sh)'
+        runner_degrade
         runner_integrity_freeze
         return
       fi
@@ -272,8 +289,8 @@ runner_tree() {
       ;;
     bwrap)
       if ! command -v bwrap >/dev/null 2>&1; then
-        [ "$SANDBOX" = env-clean ] || die 77 'bwrap unavailable; strict policy cannot run'
-        BACKEND=none
+        runner_may_degrade || die 77 'bwrap unavailable; strict policy cannot run (run host-doctor.sh)'
+        runner_degrade
         runner_integrity_freeze
         return
       fi
@@ -338,10 +355,13 @@ runner_probe() {
   if ! runner_command "test \"\$(cat $source_q)\" = immutable && printf writable > $output_q"; then
     clean_output <"$OUTPUT" >>"$PARTIAL" || die 70 'cannot save source probe failure'
     clean_output <"$OUTPUT" >&2
-    [ "$SANDBOX" = env-clean ] || return 1
-    BACKEND=none
-    SANDBOX_ARGS=()
+    runner_may_degrade || return 1
+    runner_degrade
     runner_command "test \"\$(cat $source_q)\" = immutable && printf writable > $output_q" || return 1
+  fi
+  if [ "$BACKEND" = none ] && [ "$SANDBOX" != env-clean ]; then
+    printf -- '- RED LINES NOT OS-ENFORCED: the policy denies %s, but this host cannot launch %s; the committed policy approves fallback env-clean. Network denial is best effort only (dead proxy variables); denied paths stay readable.\n' \
+      "$(printf '%s' "$POLICY" | jq -r '[if .deny_network then "network" else empty end, (.deny_paths[]? )] | join(", ")')" "$SANDBOX" >>"$PARTIAL" || return 1
   fi
   if [ "$BACKEND" = none ]; then
     printf -- '- source protection: NOT OS-ENFORCED (env-clean; backend unavailable). Source/control endpoint snapshots only; transient write/restore is not detected. Host filesystem and network access remain unrestricted.\n' >>"$PARTIAL" || return 1
@@ -389,6 +409,7 @@ runner_header() {
     printf -- '- tested commit: %s\n- HEAD: %s\n- workdir: %s\n- sandbox: %s\n' "$TESTED" "$COMMIT" "$WORKDIR" "$SANDBOX"
     printf -- '- started: %s\n- recorded by sha256: %s\n' "$(date -u +%FT%TZ)" "$(sha256_of "$SCRIPT_DIR/$(basename "$0")")"
     printf -- '- policy: %s\n' "$POLICY"
+    [ "$LITE" -ne 1 ] || printf -- '- lite: %s (base %s, run config sha256 %s)\n' "$LITE_RESULT" "$AUTOPILOT_BASE" "$(sha256_of "$AUTOPILOT_RUN_CONFIG")"
     printf -- '- helper inventory sha256: %s\n- helper reference: %s\n- frozen controls sha256: %s\n' "$HELPER_DIGEST" "$HELPER_REFERENCE" "$CONTROL_DIGEST"
     local helper helper_hash
     for helper in lib.sh runner.sh redact.py policy.py evidence.py record_scope.py failure_signature.py source_state.py integrity.py; do

@@ -6,7 +6,8 @@
 - cut from: <full commit> <!-- the branch tip the workspace started from -->
 - tested commit: <full commit> <!-- latest commit that changed code; copy the full SHA from the script's last line -->
 - contract: docs/autopilot.md <!-- add: confirmed by the human <date> -->
-- mode: full <!-- lite requires a passing check-lite result and a landing audit -->
+- mode: full <!-- full | lite (documentation-only | small-change): lite requires a passing check-lite result, frozen run config, and the landing audit -->
+- host: <host-doctor recommendation: strict | env-clean | degraded | install applied | parked>
 - policy: docs/autopilot-policy.json at the pinned commit
 - helper pin: <sha256> <!-- `helper inventory sha256` from the takeoff dry run; export as AUTOPILOT_HELPER_PIN for every gate -->
 - current: takeoff <!-- takeoff | stage <n> build | stage <n> gate <label> | stage <n> mutant <label> | stage <n> review r<k> [head <sha> → <findings files>] | stage <n> record | landing preparation | landing review r<k> | landing action <step> | landed — parked <P ids>; while a review runs in the background: `<review>; <next step>` -->

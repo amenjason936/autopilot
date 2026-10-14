@@ -45,6 +45,8 @@ Gate settings (environment for `run-gate.sh`):
 
 Tool locations are environment variables or persistent paths, never a session's scratch directory.
 
+Host setup: say whether a run may change this host to make the sandbox work (`host-doctor.sh --fix`: install bubblewrap, add an AppArmor profile for it, enable user namespaces), and whether the policy approves `"fallback": "env-clean"` for hosts where it cannot (red lines then not OS-enforced). Default: neither; the run parks.
+
 ## Execution policy (required companion file)
 
 Commit `docs/autopilot-policy.json` alongside this contract. Example:

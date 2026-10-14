@@ -5,6 +5,7 @@ import os
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 import time
 
@@ -43,10 +44,20 @@ def safe_path(path):
         raise ValueError('symlink evidence path refused')
 
 
+def ignored(directory, name):
+    """True when Git would skip DIRECTORY/NAME: a MANIFEST must never list an untracked file."""
+    result = subprocess.run(['git', '-C', str(directory), 'check-ignore', '-q', '--no-index', '--', name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return result.returncode == 0
+
+
 def register(directory, source, name):
     """Redact SOURCE into DIRECTORY/NAME and append it to MANIFEST under the lock."""
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name) or '.partial' in name or name == 'MANIFEST':
         raise ValueError('invalid evidence name')
+    if ignored(directory, name):
+        print(f'{name} would be skipped by .gitignore; register it under another name (e.g. {name}.txt)', file=sys.stderr)
+        raise ValueError('ignored evidence name')
     if source.is_symlink() or not source.is_file():
         raise ValueError('source must be a regular, non-symlink file')
     lock = directory / '.autopilot.lock'
@@ -126,6 +137,11 @@ def main():
         if not known:
             raise ValueError('missing or empty manifest')
         wanted = sys.argv[3:] or list(known)
+        # Naming files checks them; MANIFEST still has to be complete on disk.
+        missing = sorted(name for name in known if not (directory / name).is_file())
+        if missing:
+            print(f'MANIFEST lists missing files: {", ".join(missing)}', file=sys.stderr)
+            raise ValueError('incomplete evidence directory')
         for name in wanted:
             if '/' in name:
                 print(f'name evidence files relative to the directory: {name!r} -> {pathlib.Path(name).name!r}', file=sys.stderr)

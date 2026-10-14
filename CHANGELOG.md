@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased — findings from the fourth and fifth end-to-end runs
+
+The token-watcher (Node) and CardiacTrim (Python) runs both landed, with 72 and
+102 recorded mutants, most of them reruns. These changes target that cost and the
+review snapshot size.
+
+- `mutant-status.py` says which recorded mutants still stand after later commits:
+  changes limited to docs paths, record paths or added test lines keep a KILLED
+  result current, so only the affected mutants are rerun.
+- `suggest-mutants.sh` skips test files (`--include-tests` to opt in), Python
+  docstring lines, `return None` → `return` and `x[0]` → `x[-1]`, and explains
+  exit 73. On CardiacTrim's change: 501 candidates → 130.
+- `api-review.py` sends evidence once: record paths are excluded from the code
+  diff, only the evidence the record cites is sent (plus MANIFEST and the
+  verification of every file), mutant evidence is condensed to header, patch and
+  result, and large changed files go as wide diff context. Landing snapshots of
+  the two runs: 851k → 320k and 1.59M → 453k characters.
+  It sizes the snapshot before writing anything, sets `max_tokens`
+  (`REVIEW_API_MAX_TOKENS`, default 131072), names a reply cut off at the
+  output limit, explains the `env-clean` → OS sandbox upgrade to the reviewer,
+  writes every output 0600, and names its log `.log.txt`.
+- Gates always treat the policy's record paths as records, so a scratch gate no
+  longer refuses on the run's uncommitted evidence or reports the record commit
+  as the tested commit.
+- `evidence.py register` refuses a name `.gitignore` would skip; a committed
+  MANIFEST that lists an uncommitted file gets a specific refusal naming it;
+  `verify-evidence.sh` checks that every MANIFEST entry exists even when files
+  are named. Every record-path refusal now says why.
+- Gate evidence labels the `GATE_KEEP_REGEX` matches.
+- Docs: commit `current:` before background reviews and with every stage
+  commit, and reconcile it on resume; per-run scratch paths; what counts against
+  a review budget; operational review failures are not finding rows; a Python
+  migration example (venv in `read_paths`, `-B`, `-p no:cacheprovider`).
+
 ## Unreleased — cross-run helper trust and a cloud model reviewer
 
 - Gates compare the helper inventory with a trusted reference before running:

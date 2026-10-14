@@ -89,7 +89,7 @@ inputs() {
   cat "$SKILL_DIR/CODEX-BRIEF.md"
 }
 
-LOG="${OUT%.json}.log"
+LOG="${OUT%.json}.log.txt"
 REQUEST="$OUT.request.json"
 # Existing review evidence is never destroyed or mistaken for a new review.
 for existing in "$OUT" "$LOG" "$OUT.invalid" "${OUT%.json}.run-record.md" "$REQUEST" "$OUT.receipt.json"; do

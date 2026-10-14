@@ -37,7 +37,9 @@ def snapshot(path):
 
 
 def main():
-    rows = [[name, snapshot(pathlib.Path(name))] for name in sys.argv[1:]]
+    # Key each input by its last path component, not the path it was reached
+    # by: a skill shared through a symlinked directory must pin identically (#9).
+    rows = [[pathlib.Path(name).name, snapshot(pathlib.Path(name))] for name in sys.argv[1:]]
     print(hashlib.sha256(json.dumps(rows, separators=(',', ':')).encode()).hexdigest())
 
 

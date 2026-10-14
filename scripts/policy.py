@@ -32,7 +32,7 @@ def paths(values, aliases=False):
 def normalize(supplied=None):
     if supplied is None:
         supplied = json.load(sys.stdin)
-    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths', 'write_dirs', 'fallback', 'generated_paths', 'lite'}
+    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths', 'write_dirs', 'fallback', 'generated_paths', 'lite', 'allow_loopback', 'share_dirs'}
     if not isinstance(supplied, dict) or set(supplied) - allowed or supplied.get('version', 1) != 1:
         raise ValueError('unsupported policy schema')
     network = supplied.get('deny_network', False)
@@ -98,6 +98,23 @@ def normalize(supplied=None):
         raise ValueError('lite must list documentation-only and/or small-change')
     if lite != ['documentation-only']:
         result['lite'] = lite
+    # macOS only: let an offline (deny_network) gate use 127.0.0.1. On Linux the
+    # bwrap network namespace already has its own private loopback (#9).
+    loopback = supplied.get('allow_loopback', False)
+    if not isinstance(loopback, bool):
+        raise ValueError('allow_loopback must be a boolean')
+    if loopback:
+        result['allow_loopback'] = True
+    # Ignored dependency directories (node_modules, .venv) linked read-only from
+    # the original checkout into each fresh worktree (#9).
+    shares = supplied.get('share_dirs', [])
+    if not isinstance(shares, list):
+        raise ValueError('share_dirs must be an array')
+    for value in shares:
+        if (not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_.-]+', value) or value in ('.', '..', '.git')):
+            raise ValueError('share_dirs must be top-level directory names')
+    if shares:
+        result['share_dirs'] = list(dict.fromkeys(shares))
     return result
 
 
@@ -133,7 +150,7 @@ def profile(policy, tree, home, temporary, gitdir, source, output, work, helpers
             lines.append(f'(deny file-write* (require-all (subpath {quote(root)}){exceptions}))')
         return '\n'.join(lines) + '\n'
     lines = ['(version 1)', '(deny default)', '(allow process*)',
-             '(allow signal (target self))', '(allow sysctl-read)', '(allow mach-lookup)',
+             '(allow signal (target self))', '(allow signal (target same-sandbox))', '(allow sysctl-read)', '(allow mach-lookup)',
              '(allow file-read-metadata)', '(allow file-read* (literal "/"))']
     for p in policy['read_paths'] + [tree, home, temporary, gitdir, output]:
         lines.append(f'(allow file-read* file-map-executable (subpath {quote(p)}))')
@@ -142,7 +159,11 @@ def profile(policy, tree, home, temporary, gitdir, source, output, work, helpers
     lines.append('(allow file-write* (literal "/dev/null") (literal "/dev/tty"))')
     for p in policy['deny_paths']:
         lines.append(f'(deny file-read* file-write* file-map-executable (subpath {quote(p)}))')
-    # No network rule is allowed: strict modes are always offline.
+    # Strict modes are offline. allow_loopback admits 127.0.0.1/::1 only; it is
+    # the host's own loopback on macOS, so host services there become reachable.
+    if policy.get('allow_loopback'):
+        lines.append('(allow network* (local ip "localhost:*"))')
+        lines.append('(allow network* (remote ip "localhost:*"))')
     return '\n'.join(lines) + '\n'
 
 

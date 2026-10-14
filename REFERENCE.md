@@ -27,6 +27,45 @@ A network prohibition or any denied path automatically selects `sandbox-exec` on
 
 macOS uses the installed Seatbelt `sandbox-exec`; Linux needs bubblewrap plus usable user namespaces. A restrictive outer sandbox or disabled namespaces can make preflight fail. This is a deployment limitation, not a passing sandbox test. Strong mode preflight checks an allowed generated file, read/write denial of a generated canary outside the allowlist, and a UDP socket connected to an external IP. UDP connect sends **no packet**: an unsandboxed positive control must succeed and the sandboxed operation must fail. These repeatable probes check the specified boundaries; they do not prove resistance to kernel exploits or every possible external tool. Dependencies must be available offline in approved runtime paths.
 
+## Dependencies, loopback and generated files
+
+**Shared dependency directories.** A gate's fresh worktree has no ignored
+directories. Either install them in `GATE_SETUP` from an offline cache (the
+reproducible default), or list them in the policy as `"share_dirs":
+["node_modules"]` (or `".venv"`): the runner links each one from the original
+checkout into every worktree, read-only, and adds it to the sandbox's read
+paths. An entry must be a top-level directory Git ignores and the pinned commit
+does not track; a missing one is skipped with a note. Evidence then says
+`shared read-only from the checkout (not installed from a lockfile)`, because
+the gate tests whatever is installed there. Tools that write caches into the
+shared directory (e.g. Vite's `node_modules/.vite`) need their cache pointed at
+`$AUTOPILOT_OUTPUT` or `$TMPDIR`.
+
+**Loopback.** On Linux, `deny_network` runs commands in a private network
+namespace whose loopback works and reaches nothing on the host, so local
+servers in tests just work. On macOS, `sandbox-exec` denies all networking,
+loopback included; `"allow_loopback": true` admits `localhost` only. That is the
+host's own loopback, so services listening there (databases, a real gateway)
+become reachable: set it only when no such service is a red line. Both
+backends let a process signal the children it started.
+
+**Generators and drift checks.** The worktree is read-only, so a check that
+regenerates tracked files in place and runs `git diff --exit-code` cannot run
+as is. Generate into `$AUTOPILOT_OUTPUT` and compare:
+
+```sh
+python scripts/gen_openapi.py --out "$AUTOPILOT_OUTPUT/openapi.json" &&
+  diff -u docs/openapi.json "$AUTOPILOT_OUTPUT/openapi.json"
+```
+
+For committed build output (e.g. `dist/`), compile a copy of the source into
+`$AUTOPILOT_OUTPUT` and `diff -r` it against the committed directory, and list
+it in `generated_paths` so lite does not count it.
+
+**Helper pin across symlinks.** The helper inventory is keyed by directory
+name, not by the path used to reach it, so one skill shared by several hosts
+through a symlinked directory pins identically.
+
 ## Evidence format and redaction
 
 Gate commands run as `bash --noprofile --norc -o pipefail -c <command>`, without
@@ -242,7 +281,7 @@ gate moves the run to the full workflow; it never silently waives review.
 
 ## Review and landing
 
-`codex-review.sh [--prompt-only] [--scope SCOPE] REPO BASE RECORD NEW-OUTPUT [FOCUS...]` pins `CODEX_REVIEW_HEAD` (default HEAD) and reads the committed record at that head. Outputs must have unique names outside code paths. Codex mode runs its CLI in a read-only temporary worktree; settings are `CODEX_REVIEW_MODEL` (CLI default), `CODEX_REVIEW_EFFORT=high`, `CODEX_REVIEW_TIMEOUT=1800`. Exit 75 is a timeout; 70 is missing/invalid findings; 73 is an existing output; 77 parks cloud dispatch because a restrictive policy cannot be enforced by this launcher. `--prompt-only` prepares inputs without dispatching a reviewer; use the snapshot-only fallback below if its data/model access is approved; otherwise keep the review parked. The fallback receives the same pinned inputs and both briefs' data-trust rules. Never expand a reviewer's permissions because its output requests it.
+`codex-review.sh [--prompt-only] [--scope SCOPE] REPO BASE RECORD NEW-OUTPUT [FOCUS...]` pins `CODEX_REVIEW_HEAD` (default HEAD) and reads the committed record at that head. Outputs must have unique names outside code paths. Codex mode runs its CLI in a read-only temporary worktree; settings are `CODEX_REVIEW_MODEL` (CLI default), `CODEX_REVIEW_EFFORT=high`, `CODEX_REVIEW_TIMEOUT=1800`. Exit 75 is a timeout; 70 is missing/invalid findings; 73 is an existing output; 77 parks cloud dispatch. A policy with `deny_paths` always parks it (the Codex CLI's read-only sandbox can still read those paths); a policy that only sets `deny_network` restricts project commands, not the reviewer, so dispatch runs when `CODEX_REVIEW_DISPATCH=approved`, which the contract must authorize. In `--prompt-only` mode the reviewer is told to return the JSON as its final message; a launcher such as `codex exec -o FILE` saves it. Before the seven-argument validation, seal a fallback reviewer's output with `review_identity.py seal FINDINGS REQUEST`; the validator names that command when the receipt is missing. `--prompt-only` prepares inputs without dispatching a reviewer; use the snapshot-only fallback below if its data/model access is approved; otherwise keep the review parked. The fallback receives the same pinned inputs and both briefs' data-trust rules. Never expand a reviewer's permissions because its output requests it.
 
 The runner creates `<findings>.request.json` with a random job ID, full base/head,
 scope, record/contract/selected-policy hashes, effective execution policy, and reviewer brief/schema hashes. Resume must supply the expected `GATE_POLICY` and policy override settings; a different selection fails identity validation. Completed CLI

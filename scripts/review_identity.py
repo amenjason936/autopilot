@@ -2,6 +2,7 @@
 """Bind reviewer outputs to a runner-owned request and the expected Git inputs."""
 import hashlib
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -79,7 +80,14 @@ def main():
     elif mode == 'dispatch' and len(sys.argv) == 5:
         repo, head, skill = sys.argv[2:]
         policy = selected_policy(repo, head)['effective']
-        if policy['sandbox'] != 'env-clean' or policy['deny_network'] or policy['deny_paths']:
+        # The Codex CLI's own read-only sandbox can read any path on the host,
+        # so a policy with deny_paths always parks dispatch. A network-only ban
+        # constrains project commands, not the reviewer: the contract may
+        # approve Codex dispatch explicitly (#9).
+        if policy['deny_paths']:
+            return 77
+        restrictive = policy['sandbox'] != 'env-clean' or policy['deny_network']
+        if restrictive and os.environ.get('CODEX_REVIEW_DISPATCH') != 'approved':
             return 77
     else:
         return 64

@@ -136,7 +136,7 @@ PY
   evidence_fixture
   { printf '# Mutant — mutant-c1\n\n- tested commit: %040d\n- mutated files: value\n\n```diff\n-safe\n+PATCH-LINE\n```\n## baseline (unpatched)\n\n' 0
     for i in $(seq 200); do printf 'NOISY-TEST-OUTPUT %s\n' "$i"; done
-    printf -- '- result: KILLED\n'; } >"$REPO/docs/ev/mutant-c1.md"
+    printf -- '- finished: 2026-10-14T00:00:00Z\n- result: KILLED\n'; } >"$REPO/docs/ev/mutant-c1.md"
   (cd "$REPO/docs/ev" && python3 -c 'import hashlib,sys; [print(hashlib.sha256(open(n,"rb").read()).hexdigest()+"  "+n) for n in sys.argv[1:]]' gate-s1.md mutant-old.md mutant-c1.md >MANIFEST)
   printf 'record cites gate-s1 and mutant-c1\n' >"$REPO/docs/run.md"
   commit_fixture

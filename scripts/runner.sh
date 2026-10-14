@@ -160,6 +160,12 @@ runner_init() {
   require_seconds GATE_TIMEOUT "$TIMEOUT"
   require_seconds GATE_TAIL_LINES "$TAIL_LINES"
   require_seconds GATE_FAIL_LINES "$FAIL_LINES"
+  # Checked before anything goes through the redactor: its own diagnostic
+  # could not be redacted with a broken rule.
+  if [ -n "${REDACT_REGEX:-}" ] && ! python3 -c 'import os,re; re.compile(os.environ["REDACT_REGEX"])' 2>/dev/null; then
+    printf '%s\n' 'invalid REDACT_REGEX: not a Python regular expression' >&2
+    exit 64
+  fi
   if [ -n "${GATE_KEEP_REGEX:-}" ]; then
     printf '' | grep -E -- "$GATE_KEEP_REGEX" >/dev/null 2>&1
     [ "$?" -le 1 ] || die 64 'invalid GATE_KEEP_REGEX'
@@ -458,10 +464,11 @@ runner_phase() {
     {
       # Literal Markdown fences, not command substitution.
       # shellcheck disable=SC2016
-      printf '```sh\n%s\n```\n\nexit %s; timed out: %s\n\n```\n' "$command" "$status" "$([ "$TIMED_OUT" -eq 1 ] && echo "yes (after ${TIMEOUT}s)" || echo no)"
+      printf '```sh\n%s\n```\n\nexit %s; timed out: %s\n\n```\n' "$(printf '%s' "$command" | defence)" "$status" "$([ "$TIMED_OUT" -eq 1 ] && echo "yes (after ${TIMEOUT}s)" || echo no)"
       # Redact the WHOLE output before selecting lines: multi-line secrets and
       # undecodable prefixes must not escape because they fell outside the tail.
-      clean_output <"$OUTPUT" >"$WORK/clean-output" || exit 70
+      { clean_output <"$OUTPUT" || exit 70; } | defence >"$WORK/clean-output" || exit 70
+      [ -s "$WORK/clean-output" ] || exit 70
       tail -n "$keep" "$WORK/clean-output" || exit 70
       if [ -n "${GATE_KEEP_REGEX:-}" ]; then
         grep -anE -- "$GATE_KEEP_REGEX" "$WORK/clean-output" >"$WORK/matches"

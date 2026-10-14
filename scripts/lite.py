@@ -34,6 +34,12 @@ BUILD = ('package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock'
          '.npmrc', 'tsconfig*.json', 'vite.config.*', 'vitest.config.*', 'jest.config.*', '.env*')
 TESTS = ('test/*', 'tests/*', '*/test/*', '*/tests/*', '*/testing/*', 'testing/*', '__tests__/*', '*/__tests__/*',
          'test_*.py', '*/test_*.py', '*_test.py', '*_test.go', '*.test.*', '*.spec.*', '*.bats')
+# Changed lines that touch access control or secret handling send the run to
+# full mode whatever their size: a two-line guard removal is the riskiest change
+# there is. Whole words, case-insensitive; deliberately broad.
+RISKY = re.compile(r'(?i)(?<![a-z])(?:auth\w*|authori[sz]\w*|admin\w*|roles?|permissions?|privileges?|is_?(?:admin|staff|owner|superuser)'
+                   r'|password\w*|passwd|secrets?|credentials?|csrf|cors|acl|rbac|sudo|setuid|chmod|verify_?signature|signature'
+                   r'|encrypt\w*|decrypt\w*|sanitiz\w*|escape_?html|allow_?list|deny_?list|whitelist|blacklist)(?![a-z])')
 LIMITS = {'documentation-only': dict(files=None, code=50, total=50),
           'small-change': dict(files=4, code=40, total=150)}
 
@@ -57,15 +63,20 @@ def main():
     try:
         base = git('rev-parse', '--verify', base + '^{commit}').strip().decode()
         head = git('rev-parse', '--verify', head + '^{commit}').strip().decode()
-        records, generated = [], []
+        records, generated, allowed = [], [], ['documentation-only']
         policy = subprocess.run(['git', '-C', repo, 'show', f'{head}:docs/autopilot-policy.json'], capture_output=True)
         if policy.returncode == 0:
             try:
                 committed = json.loads(policy.stdout)
                 records = [v.strip('/') for v in committed.get('record_paths', {}).values() if v]
                 generated = [v.strip('/') for v in committed.get('generated_paths', []) if isinstance(v, str) and v.strip('/')]
+                allowed = committed.get('lite', ['documentation-only'])
             except (ValueError, AttributeError):
                 records, generated = [], []
+        # The human opts in, per risk class, in the committed policy.
+        if not isinstance(allowed, list) or risk not in allowed:
+            print(f'lite refused: the committed policy does not allow risk {risk!r} (policy "lite": {allowed!r})')
+            return 1
 
         def recorded(path):
             return any(path == r or path.startswith(r + '/') for r in records)
@@ -111,14 +122,34 @@ def main():
             if not is_test:
                 code += lines
             files.append(path)
-        modes = git('diff', '--no-ext-diff', '--raw', base, head).decode()
+        modes = git('diff', '--no-ext-diff', '--no-renames', '--raw', base, head).decode()
         for line in modes.splitlines():
             meta, _, path = line.partition('\t')
             if recorded(path) or built(path):
                 continue
-            if any(mode in meta.split()[:2] for mode in ('100755', ':100755', '160000', ':160000', '120000', ':120000')):
-                print('lite refused: executable, submodule or symlink changes')
+            old, new = meta.lstrip(':').split()[:2]
+            # Symlinks and submodules never; an executable bit only when it
+            # changes (or arrives with a new file). Editing a script that was
+            # already executable is fine (issue #8: false refusal).
+            if {old, new} & {'120000', '160000'}:
+                print(f'lite refused: symlink or submodule change: {path}')
                 return 1
+            if '100755' in (old, new) and (old != new or risk == 'documentation-only'):
+                print(f'lite refused: executable bit change: {path}')
+                return 1
+        if risk == 'small-change':
+            code_paths = [p for p in files if not any(fnmatch.fnmatch(p.lower(), t) for t in TESTS)]
+            if code_paths:
+                hunks = git('diff', '--no-ext-diff', '--no-renames', '-U0', base, head, '--', *code_paths).decode('utf-8', 'replace')
+                current = None
+                for line in hunks.splitlines():
+                    if line.startswith('+++ '):
+                        current = line[6:] if line.startswith('+++ b/') else line[4:]
+                    elif line.startswith(('+', '-')) and not line.startswith(('---', '+++')):
+                        match = RISKY.search(line[1:])
+                        if match:
+                            print(f'lite refused: a changed line touches access control or secrets ({match[0]!r} in {current}); use full mode')
+                            return 1
     except (subprocess.CalledProcessError, ValueError):
         return 65
     limit = LIMITS[risk]

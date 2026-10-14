@@ -27,6 +27,28 @@ A network prohibition or any denied path automatically selects `sandbox-exec` on
 
 macOS uses the installed Seatbelt `sandbox-exec`; Linux needs bubblewrap plus usable user namespaces. A restrictive outer sandbox or disabled namespaces can make preflight fail. This is a deployment limitation, not a passing sandbox test. Strong mode preflight checks an allowed generated file, read/write denial of a generated canary outside the allowlist, and a UDP socket connected to an external IP. UDP connect sends **no packet**: an unsandboxed positive control must succeed and the sandboxed operation must fail. These repeatable probes check the specified boundaries; they do not prove resistance to kernel exploits or every possible external tool. Dependencies must be available offline in approved runtime paths.
 
+## Evidence format and redaction
+
+Machine conclusions come only from runner-written structure: a result is the
+file's final two lines, `- finished: …` and `- result: …`; header fields come
+before any command output. Tools (`mutant-status.py`, `api-review.py`, the
+auditor) never take a `- result:` line from anywhere else. Untrusted text
+(commands, output, patches) is embedded with every run of three or more
+backticks broken by zero-width spaces, so it cannot close a fence.
+
+Redaction fails closed. A redactor error (an invalid `REDACT_REGEX`, which the
+runner also rejects up front with exit 64, or any internal failure) prints
+nothing and exits non-zero; the runner then refuses to publish (exit 70) and
+prints `diagnostic withheld: the redactor failed` instead of an unredacted
+message. Output that is not UTF-8 is a deliberate outcome, not a failure: the
+whole block becomes `<non-UTF-8 output withheld>`. Failure signatures and TAP
+detection read output with invalid bytes replaced, so binary noise never
+breaks a valid gate.
+
+`codex-review.sh` accepts `CODEX_REVIEW_EFFORT` only as minimal, low, medium,
+high or xhigh, and `CODEX_REVIEW_MODEL` only as a plain identifier
+(`[A-Za-z0-9._:/-]`); anything else exits 64 before the CLI starts.
+
 ## Host adaptation
 
 `host-doctor.sh [--fix] [REPO]` checks the required tools, whether the OS sandbox
@@ -166,8 +188,10 @@ A `.partial` is not proof that a side effect did or did not happen. Automatic re
 mutant evidence file in MANIFEST and compares its tested commit with COMMIT
 (default HEAD). A KILLED result stays current when everything that changed since
 is a docs path (`--docs`, the contract's *Docs paths*), a record path, or a test
-file whose change only adds lines (the detector's own files and paths that look
-like tests), so existing assertions still run unchanged. The mutated file, any
+file whose change only appends lines after its old end, none of which can exit,
+return, skip or swallow a failure (the detector's own files and paths that look
+like tests), so existing assertions still run unchanged. Gate settings and
+environment are not tracked: change one and rerun by hand. The mutated file, any
 other source, edited or deleted test lines, or helpers the detector runs mean a
 rerun. It prints label, result, tested commit, `current`/`rerun` and the reason;
 `--check` exits 1 when a KILLED mutant needs a rerun. The rule is a heuristic the
@@ -175,7 +199,7 @@ reviewers may challenge: a test that adds an early exit can still change what
 runs. Rearranging tests silently retargets a regex signature, which is why edits
 to existing test lines always count.
 
-`check-lite.sh REPO BASE HEAD RUN-CONFIG.json` counts added+removed lines across the diff, except the policy's record paths, which the runner admits only as registered evidence and a `.md` record. Config must contain exactly `{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}` or the same with `"risk":"small-change"`. Files under the policy's `generated_paths` (committed build output such as `dist/`) are not counted either; the contract must then have a gate command proving them fresh against the source (e.g. compile a copy into `$AUTOPILOT_OUTPUT` and diff), and `suggest-mutants.sh` skips them along with `*.min.js`, `*.map` and `*.d.ts`. Sensitive names are matched as whole words of the path, split on `/ . _ -` and camelCase: `authMiddleware.ts` and `oauth/` are refused, `author.ts` is not. small-change: at most 4 files, 40 changed lines outside tests (paths like `test/`, `tests/`, `*.test.*`, `test_*.py`) and 150 in all; dependency/build/CI files (`package.json`, lockfiles, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `Makefile`, `Dockerfile`, `tsconfig*.json`, test-runner configs, `.gitignore`, `.npmrc`, `.env*`) and deleting a non-test file are refused; the message says which rule refused it. The deterministic allowlist accepts only non-executable low-risk `.md`/`.rst` files; `.txt` is intentionally full mode because it includes requirements and build entrypoints. Executable-bit and mode-only changes are rejected. Runtime code, dependency changes and safety-sensitive names (including SKILL/AGENTS, review briefs, policy, contract, authentication, security and migrations) require full mode even for one line. The runner's `--lite` flag additionally requires `AUTOPILOT_BASE` and `AUTOPILOT_RUN_CONFIG`. Eligibility is rechecked at each gate as scope grows. These declarations cannot establish their own truth; the landing auditor compares them with the actual plan/commands. Invalid eligibility falls back to the full workflow, never silently waives review.
+`check-lite.sh REPO BASE HEAD RUN-CONFIG.json` counts added+removed lines across the diff, except the policy's record paths, which the runner admits only as registered evidence and a `.md` record. Config must contain exactly `{"stages":1,"network":false,"publish":false,"risk":"documentation-only"}` or the same with `"risk":"small-change"`. Files under the policy's `generated_paths` (committed build output such as `dist/`) are not counted either; the contract must then have a gate command proving them fresh against the source (e.g. compile a copy into `$AUTOPILOT_OUTPUT` and diff), and `suggest-mutants.sh` skips them along with `*.min.js`, `*.map` and `*.d.ts`. Sensitive names are matched as whole words of the path, split on `/ . _ -` and camelCase: `authMiddleware.ts` and `oauth/` are refused, `author.ts` is not. The policy's `lite` list (default `["documentation-only"]`) is the human's opt-in per risk class. small-change also refuses any added or removed code line (outside tests) containing an access-control or secret word — `auth*`, `admin*`, `role`, `permission`, `privilege`, `password`, `secret`, `credential`, `csrf`, `cors`, `acl`, `rbac`, `sudo`, `chmod`, `signature`, `encrypt`/`decrypt`, `sanitize`, allow/deny lists — because a two-line guard removal looks small and innocuous to a path check. An executable bit is refused only when it changes or arrives with a new file; symlinks and submodules always. small-change: at most 4 files, 40 changed lines outside tests (paths like `test/`, `tests/`, `*.test.*`, `test_*.py`) and 150 in all; dependency/build/CI files (`package.json`, lockfiles, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `Makefile`, `Dockerfile`, `tsconfig*.json`, test-runner configs, `.gitignore`, `.npmrc`, `.env*`) and deleting a non-test file are refused; the message says which rule refused it. The deterministic allowlist accepts only non-executable low-risk `.md`/`.rst` files; `.txt` is intentionally full mode because it includes requirements and build entrypoints. Executable-bit and mode-only changes are rejected. Runtime code, dependency changes and safety-sensitive names (including SKILL/AGENTS, review briefs, policy, contract, authentication, security and migrations) require full mode even for one line. The runner's `--lite` flag additionally requires `AUTOPILOT_BASE` and `AUTOPILOT_RUN_CONFIG`. Eligibility is rechecked at each gate as scope grows. These declarations cannot establish their own truth; the landing auditor compares them with the actual plan/commands. Invalid eligibility falls back to the full workflow, never silently waives review.
 
 ## Review and landing
 

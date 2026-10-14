@@ -32,7 +32,7 @@ def paths(values, aliases=False):
 def normalize(supplied=None):
     if supplied is None:
         supplied = json.load(sys.stdin)
-    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths', 'write_dirs', 'fallback', 'generated_paths'}
+    allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths', 'write_dirs', 'fallback', 'generated_paths', 'lite'}
     if not isinstance(supplied, dict) or set(supplied) - allowed or supplied.get('version', 1) != 1:
         raise ValueError('unsupported policy schema')
     network = supplied.get('deny_network', False)
@@ -92,6 +92,12 @@ def normalize(supplied=None):
             raise ValueError('generated_paths must be repository-relative directories')
     if generated:
         result['generated_paths'] = [v.strip('/') for v in generated]
+    # Which lite risk classes the human allows (default: documentation-only).
+    lite = supplied.get('lite', ['documentation-only'])
+    if not isinstance(lite, list) or any(v not in ('documentation-only', 'small-change') for v in lite):
+        raise ValueError('lite must list documentation-only and/or small-change')
+    if lite != ['documentation-only']:
+        result['lite'] = lite
     return result
 
 

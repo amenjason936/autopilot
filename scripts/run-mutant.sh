@@ -45,7 +45,7 @@ runner_header Mutant
 {
   printf -- '- failure signature: %s; expected exit: %s\n' "${MUTANT_FAILURE_REGEX:-<unset; KILLED is unavailable>}" "${MUTANT_FAILURE_EXIT:-1}"
   printf -- '- mutated files: %s\n- patch sha256: %s\n\n```diff\n' "$MUTATED" "$(sha256_of "$PATCH")"
-  cat "$PATCH"
+  defence <"$PATCH"
   printf '\n```\n'
 } | clean_output >>"$PARTIAL" || die 70 'cannot write mutation evidence'
 SETUP="${MUTANT_SETUP:-${GATE_SETUP:-}}"

@@ -12,7 +12,7 @@ ANSI = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|
 
 
 def plain(path):
-    return ANSI.sub('', pathlib.Path(path).read_text(encoding='utf-8'))
+    return ANSI.sub('', pathlib.Path(path).read_bytes().decode('utf-8', errors='replace'))
 
 
 def main():

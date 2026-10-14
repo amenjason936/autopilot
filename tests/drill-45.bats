@@ -124,7 +124,7 @@ small_config() { printf '{"stages":1,"network":false,"publish":false,"risk":"sma
 
 @test "lite small-change admits a small code fix with its test and refuses what it must" {
   mkdir -p "$REPO/src" "$REPO/tests" "$REPO/docs"
-  printf '{"version":1,"record_paths":{"evidence_dir":"docs/ev","run_record":"docs/run.md"}}' >"$REPO/docs/autopilot-policy.json"
+  printf '{"version":1,"lite":["small-change"],"record_paths":{"evidence_dir":"docs/ev","run_record":"docs/run.md"}}' >"$REPO/docs/autopilot-policy.json"
   printf 'export const f = (x) => x;\n' >"$REPO/src/f.js"
   commit_fixture
   base="$(git -C "$REPO" rev-parse HEAD)"
@@ -221,7 +221,7 @@ restrictive_policy() {
 
 @test "lite skips generated paths, records its result in evidence, and matches sensitive words not substrings" {
   mkdir -p "$REPO/src" "$REPO/dist" "$REPO/docs"
-  printf '{"version":1,"generated_paths":["dist"]}' >"$REPO/docs/autopilot-policy.json"
+  printf '{"version":1,"lite":["small-change"],"generated_paths":["dist"]}' >"$REPO/docs/autopilot-policy.json"
   printf 'a\n' >"$REPO/src/author.ts"; commit_fixture
   base="$(git -C "$REPO" rev-parse HEAD)"
   printf '{"stages":1,"network":false,"publish":false,"risk":"small-change"}' >"$CASE/run.json"

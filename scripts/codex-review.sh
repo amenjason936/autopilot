@@ -66,6 +66,10 @@ if [ -n "$EXPLICIT_SCOPE" ] && [ -n "$LEGACY_SCOPE" ] && [ "$EXPLICIT_SCOPE" != 
 fi
 HEAD_REF="${CODEX_REVIEW_HEAD:-HEAD}"
 require_seconds CODEX_REVIEW_TIMEOUT "$TIMEOUT"
+# Both are spliced into `-c key="value"` TOML: allow only known efforts and a
+# plain model identifier, never quotes, spaces or newlines.
+case "$EFFORT" in minimal|low|medium|high|xhigh) ;; *) die 64 'CODEX_REVIEW_EFFORT must be minimal, low, medium, high or xhigh' ;; esac
+[ -z "$MODEL" ] || [[ "$MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]] || die 64 'CODEX_REVIEW_MODEL must be a plain model identifier (letters, digits, . _ : / -)'
 
 BASE_SHA="$(git -C "$REPO" rev-parse --verify --quiet "$BASE^{commit}")" ||
   die 65 "base ref does not resolve to a commit: $BASE"

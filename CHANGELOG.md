@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — independent review round (issue #8), trust fixes
+
+- Command output can no longer forge evidence conclusions: tools read a
+  result only from the runner-written footer, and backtick runs in commands,
+  output and patches are broken so they cannot close a fence.
+- Redaction fails closed: a redactor error refuses publication (exit 70) with a
+  diagnostic that is withheld rather than printed raw; an invalid
+  `REDACT_REGEX` is rejected up front (exit 64). Non-UTF-8 output is withheld
+  as before, and no longer breaks signature matching.
+- Lite small-change needs the human's opt-in in the committed policy
+  (`"lite": [...]`), refuses changed code lines that touch access control or
+  secrets, and no longer refuses edits to an already executable script.
+- `CODEX_REVIEW_EFFORT` and `CODEX_REVIEW_MODEL` are validated before they are
+  spliced into TOML.
+- `mutant-status.py` keeps a result current across a test change only when the
+  change appends inert lines; an added `exit 0`, `skip`, `|| true` and the like
+  mean a rerun.
+
 ## Unreleased — lite small-change and host adaptation
 
 - `--lite` gains `risk: small-change` for a small code fix: at most 4 files,

@@ -9,8 +9,15 @@ import sys
 FLAG = r'(?!["\']?(?:0|1|true|false|yes|no|on|off)["\']?(?:[\s,;]|$))'
 
 
+class Withheld(Exception):
+    """Deliberately withheld input (not UTF-8): a redaction outcome, not a failure."""
+
+
 def redact(data):
-    text = data.decode('utf-8', errors='strict')
+    try:
+        text = data.decode('utf-8', errors='strict')
+    except UnicodeDecodeError as error:
+        raise Withheld from error
     text = re.sub(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))', '', text)
     text = ''.join(c for c in text if c in '\n\t' or ord(c) >= 32)
     patterns = [
@@ -43,8 +50,15 @@ def redact(data):
 
 
 if __name__ == '__main__':
+    # Fail closed: a processing error (bad custom rule, internal error) prints
+    # nothing and exits non-zero, so no caller can publish unredacted or hollow
+    # text as if redaction had succeeded. Only non-UTF-8 input is a deliberate,
+    # successful outcome: the whole block is withheld.
     try:
         result = redact(sys.stdin.buffer.read())
-    except Exception:
-        result = '<redacted>\n'
+    except Withheld:
+        result = '<non-UTF-8 output withheld>\n'
+    except Exception as error:  # noqa: BLE001 - every failure must fail closed
+        print(f'redaction failed: {type(error).__name__}', file=sys.stderr)
+        sys.exit(1)
     sys.stdout.write(result)

@@ -185,7 +185,10 @@ def condensed(text):
     keep = [line for line in text.split('\n## ', 1)[0].splitlines()
             if not line.startswith(('- helper ', '- policy: ', '- recorded by', '- frozen controls'))]
     patch = re.search(r'```diff\n.*?\n```', text, re.S)
-    tail = [line for line in text.splitlines()[-12:] if line.startswith('- ')]
+    # The footer only (finished, result): `- ` lines from command output could
+    # otherwise pose as runner-written conclusions.
+    footer = re.search(r'\n(- finished: [^\n]*\n- result: [^\n]*)\n\Z', text)
+    tail = footer[1].splitlines() if footer else ['- result: <no runner footer: incomplete or forged evidence>']
     return '\n'.join(keep + ([patch[0]] if patch else []) +
                       ['[test output omitted; the full file is hashed in MANIFEST and verified above]'] + tail)
 

@@ -7,7 +7,10 @@
 die() {
   local status="$1"
   shift
-  printf "%s\n" "$*" | clean_output >&2
+  # A diagnostic that cannot be redacted is withheld, never printed raw; the
+  # status still says what happened.
+  printf "%s\n" "$*" | clean_output >&2 ||
+    printf 'autopilot: exit %s (diagnostic withheld: the redactor failed)\n' "$status" >&2
   exit "$status"
 }
 
@@ -122,13 +125,19 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 # Every untrusted string (commands, patches, logs, errors) uses this boundary.
 # Buffering in the helper means an invalid custom regex never emits raw input.
+# Fails closed: on a redactor error nothing is printed and the status is 1,
+# so `… | clean_output >>evidence || die` refuses to publish.
 redact() {
   local result
-  if ! result="$(python3 "$LIB_DIR/redact.py" 2>/dev/null)"; then
-    printf '<redacted>\n'
-    return 0
-  fi
+  result="$(python3 "$LIB_DIR/redact.py" 2>/dev/null)" || return 1
   printf '%s\n' "$result"
+}
+
+# Untrusted text is embedded in Markdown fences: break every run of three or
+# more backticks with zero-width spaces so it can never close a fence and
+# write runner-looking lines outside it (issue #8 item 1).
+defence() {
+  perl -CSD -pe 's/(\x60{3,})/join("\x{200B}", split(\/\/, $1))/ge'
 }
 
 strip_colour() {

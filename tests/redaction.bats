@@ -13,14 +13,21 @@ load test_helper
   grep -q '<redacted>' "$EVID/redact.md"
 }
 
-@test "invalid custom regex and invalid UTF8 suppress the entire block" {
+@test "a redactor error fails closed while non-UTF-8 output is withheld" {
   export REDACT_REGEX='['
   run bash -c 'printf "private-value" | bash -c '\''source "$1/scripts/lib.sh"; clean_output'\'' _ "$SKILL"'
-  [ "$status" -eq 0 ]
-  [ "$output" = '<redacted>' ]
+  [ "$status" -ne 0 ]
+  [[ "$output" != *private-value* ]]
+  [ -z "$output" ]
+  run gate badrule 'echo private-value'
+  [ "$status" -eq 64 ]
+  [[ "$output" == *'invalid REDACT_REGEX'* ]]
+  [[ "$output" != *private-value* ]]
+  [ ! -e "$EVID/badrule.md" ]
   unset REDACT_REGEX
   run bash -c 'printf "private-value\377" | python3 "$SKILL/scripts/redact.py"'
-  [ "$output" = '<redacted>' ]
+  [ "$status" -eq 0 ]
+  [ "$output" = '<non-UTF-8 output withheld>' ]
 }
 
 @test "multiline private key is redacted before output truncation" {

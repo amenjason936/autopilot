@@ -7,7 +7,11 @@ A mutant result is tied to its tested commit. A later commit does not make it
 stale when everything that changed since is one of:
   - a docs path (--docs, repeatable; e.g. '*.md', 'docs/**'), or
   - a test file (the detector's own files, or a path that looks like a test)
-    whose change only ADDS lines, so existing assertions still run unchanged.
+    whose change only APPENDS lines after its old end, none of which can exit,
+    return, skip or swallow failures (exit, return, sys.exit, process.exit,
+    skip, .only, xfail, trap, set +e, exec, `|| true`), so existing assertions
+    still run unchanged. Flags and environment are not tracked: a changed
+    gate setting means a rerun by hand.
 Anything else — the mutated file, other source files, deleted or edited test
 lines, helpers the detector runs — means rerun it under a new label.
 Record paths (the policy's evidence directory and run record) never count.
@@ -36,7 +40,10 @@ def parse(path):
     if not text.startswith('# Mutant'):
         return None
     tested = re.search(r'^- tested commit: ([0-9a-f]{40,64})$', text, re.M)
-    result = re.search(r'^- result: ([A-Z]+)', text, re.M)
+    # Only the runner-written footer counts: the file's last two lines are
+    # `- finished: …` and `- result: …`. A result line inside command output
+    # can never be the last line (issue #8 item 1).
+    result = re.search(r'\n- finished: [^\n]*\n- result: ([A-Z]+)[^\n]*\n\Z', text)
     mutated = re.search(r'^- mutated files: (.+)$', text, re.M)
     commands = re.findall(r'^## baseline \(unpatched\)\n\n```sh\n(.*?)\n```', text, re.M | re.S)
     if not tested:
@@ -44,6 +51,30 @@ def parse(path):
     return dict(tested=tested[1], result=result[1] if result else 'INCOMPLETE',
                 mutated=[m.strip() for m in mutated[1].split(',')] if mutated else [],
                 command=' '.join(commands))
+
+
+# Added lines that can stop or skip what runs after them: their presence in a
+# test change means a rerun even when nothing was deleted (issue #8).
+DISABLING = re.compile(r'(?i)(?:^|[\s;{(])(?:exit|return|sys\.exit|os\._exit|process\.exit|quit|skip\w*|xfail|'
+                       r'\.only|\.skip|pytest\.mark|unittest\.skip|trap|set\s+\+e|exec|raise\s+SystemExit)\b|\|\|\s*true')
+
+
+def appended_inert(repo, old, new, path):
+    """True when PATH's change only appends lines after the old end, none of them able to disable checks."""
+    try:
+        old_lines = git(repo, 'show', f'{old}:{path}').count('\n')
+        diff = git(repo, 'diff', '-U0', '--no-renames', f'{old}..{new}', '--', path)
+    except subprocess.CalledProcessError:
+        return False
+    for line in diff.splitlines():
+        hunk = re.match(r'@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@', line)
+        if hunk:
+            start, count = int(hunk[1]), int(hunk[2] if hunk[2] is not None else 1)
+            if count != 0 or start < old_lines:
+                return False
+        elif line.startswith('+') and not line.startswith('+++') and DISABLING.search(line[1:]):
+            return False
+    return True
 
 
 def classify(repo, mutant, commit, docs, records):
@@ -65,9 +96,9 @@ def classify(repo, mutant, commit, docs, records):
             reasons.append(f'{path} (mutated file) changed')
             continue
         is_test = path in detector or any(fnmatch.fnmatch(path, p) for p in TEST_PATTERNS)
-        if is_test and deleted == '0' and added != '-':
+        if is_test and deleted == '0' and added != '-' and appended_inert(repo, mutant['tested'], commit, path):
             continue
-        reasons.append(f'{path} changed' + (' (test lines edited or removed)' if is_test else ''))
+        reasons.append(f'{path} changed' + (' (test change is not an inert append)' if is_test else ''))
     return ('rerun', '; '.join(reasons)) if reasons else ('current', 'only docs, record paths or added test lines changed')
 
 

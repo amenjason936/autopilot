@@ -162,8 +162,11 @@ def profile(policy, tree, home, temporary, gitdir, source, output, work, helpers
     # Strict modes are offline. allow_loopback admits 127.0.0.1/::1 only; it is
     # the host's own loopback on macOS, so host services there become reachable.
     if policy.get('allow_loopback'):
-        lines.append('(allow network* (local ip "localhost:*"))')
-        lines.append('(allow network* (remote ip "localhost:*"))')
+        # A local-address predicate on network* can also admit an outbound
+        # socket. Keep the destination restriction specific to outbound traffic.
+        lines.append('(allow network-bind (local ip "localhost:*"))')
+        lines.append('(allow network-inbound (local ip "localhost:*"))')
+        lines.append('(allow network-outbound (remote ip "localhost:*"))')
     return '\n'.join(lines) + '\n'
 
 

@@ -1,5 +1,28 @@
 # v0.2.0-rc.2 repair and independent re-evaluation
 
+## Project onboarding and measurable usability (2026-10-23)
+
+Base: `a52efc618851251e49cd533324c21f662509e70f`.
+Scope: a small, local configuration entry point, regression tests, a prioritized
+roadmap, and a macOS loopback policy repair discovered during full validation.
+Existing gate, review and evidence semantics remain the authority. No installation
+into a host, model call, dependency installation, or production data is needed.
+
+1. Inspect templates, installation payload and current checks; define acceptance — complete.
+2. Add preview-first initialization and read-only setup status using existing policy rules — complete.
+3. Test preservation, path boundaries and draft/committed status; run the existing checks — complete. On macOS 26.4, `AUTOPILOT_REQUIRE_SANDBOX=1 make check` passes all 157 tests without skips, plus ShellCheck and syntax checks. Both new negative controls have a passing baseline and a failing mutant. The loopback fixture uses the required system Perl instead of an optional Python framework.
+4. Document usage, validation and prioritized follow-ups for the upstream PR — complete. Publication and cross-platform CI status are tracked by the PR, not inferred from local tests.
+
+Acceptance: preview writes nothing; initialization never overwrites existing
+files or claims checks/approval occurred; strict offline defaults do not opt into
+fallback or shared dependencies; status does not execute project commands or
+claim acceptance; installed packages include the entry point; existing tests pass.
+
+The roadmap defines proposed validation targets, not an achieved rating or a
+claim of measured productivity improvement.
+
+---
+
 Historical implementation and validation records are retained on the
 [archive branch](https://github.com/luwill/autopilot/tree/archive/rc2-full-evidence-20261013). References below to VALIDATION.md and validation/ describe that archived run, not files shipped in the current tree.
 

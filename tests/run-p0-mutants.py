@@ -42,6 +42,7 @@ TARGETS = [
     ('p0-20-degraded-checkout', 'scripts/runner.sh', 'if [ -n "$CHECKOUT_DIGEST" ] && [ "$(runner_checkout_digest)" != "$CHECKOUT_DIGEST" ]; then', 'if false; then', 'a degraded run fails when a command writes', 'tests/issue-8.bats'),
     ('p0-21-pin-by-name', 'scripts/integrity.py', 'rows = [[pathlib.Path(name).name, snapshot(pathlib.Path(name))]', 'rows = [[name, snapshot(pathlib.Path(name))]', 'the helper digest does not depend on the path', 'tests/issue-9.bats'),
     ('p0-22-dispatch-approval', 'scripts/review_identity.py', "if restrictive and os.environ.get('CODEX_REVIEW_DISPATCH') != 'approved':", 'if False:', 'codex dispatch under a network-only ban needs explicit approval', 'tests/issue-9.bats'),
+    ('p0-24-setup-preview', 'scripts/autopilot.py', '    if args.write:', '    if True:', 'setup preview includes inspectable drafts', 'tests/onboarding.bats'),
     ('p0-7-lock', 'scripts/runner.sh', "|| die 73 'evidence directory locked; inspect owner before recovering a stale lock'", '|| true', 'directory lock rejects', 'tests/gate.bats'),
     ('p0-7-partial', 'scripts/runner.sh', 'mv "$PARTIAL" "$PARTIAL.$(date -u +%Y%m%dT%H%M%SZ).$$"', ': >"$PARTIAL"', 'partial resume archives', 'tests/gate.bats'),
     ('c1-env-inheritance', 'scripts/runner.sh', 'RUN_ENV=(env -i ', 'RUN_ENV=(env ', 'clean environment drops ambient', 'tests/gate.bats'),
@@ -74,6 +75,11 @@ TARGETS = [
 
 if sys.platform != 'darwin':
     TARGETS[0] = ('p0-1-worktree', 'scripts/runner.sh', 'SANDBOX_ARGS+=(--chdir \"$TREE$SUBDIR\")', 'SANDBOX_ARGS+=(--chdir \"$WORKDIR\")', 'gate runs at pinned commit', 'tests/gate.bats')
+else:
+    TARGETS.append(('p0-23-loopback-scope', 'scripts/policy.py',
+                    'lines.append(\'(allow network-bind (local ip "localhost:*"))\')',
+                    'lines.append(\'(allow network* (local ip "localhost:*"))\')',
+                    'a strict offline gate can use', 'tests/issue-9.bats'))
 
 # Each host attacks its actual source-protection backend, not an unused adapter.
 TARGETS.append(('rc2-source-readonly',

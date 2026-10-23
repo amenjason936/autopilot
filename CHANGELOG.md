@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Scope macOS loopback permissions by network operation. The previous
+  `network*` local-address rule admitted the external UDP probe on macOS 26.4,
+  causing preflight to park; the narrower rules allow loopback while refusing
+  external destinations. The live loopback regression checks both outcomes.
+- Add `scripts/autopilot.py init/status/doctor` for proposed project setup,
+  read-only draft/committed status and the existing host diagnosis. Preview is
+  the default; writes preserve existing files, and generated records contain no
+  illustrative successes. Existing execution and approval rules still apply.
+- Add onboarding regressions and a prioritized roadmap for measuring run costs,
+  real-task outcomes and first-run usability before claiming productivity gains.
+
 ## 0.3.0-rc.1 — 2026-10-14
 
 Everything below down to 0.2.0-rc.2, grouped by the round that produced it.

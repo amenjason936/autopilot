@@ -76,7 +76,34 @@ validates its findings. Their headers and REFERENCE.md document CLI settings.
 
 **Breaking migration:** existing contracts need a committed JSON policy; gates use fresh worktrees without untracked dependencies. Follow [the migration and offline setup guide](REFERENCE.md#migrating-an-existing-project) before upgrading an existing run.
 
-Start with [SKILL.md](SKILL.md), then [the complete local example](examples/README.md). Copy the [contract template](CONTRACT-TEMPLATE.md), define its committed JSON policy, and preview commands before the approved run. [REFERENCE.md](REFERENCE.md) covers every setting, exit code, trust boundary and recovery path. `--lite` has fixed eligibility: one stage, no network work or publishing, and either ≤50 lines of documentation or a small code fix (`small-change`: ≤4 files, ≤40 changed lines outside tests, one KILLED mutant per criterion); its landing audit remains mandatory. `host-doctor.sh` tells you whether this host can enforce the project's policy, what to install if not, and when to park.
+Start with [SKILL.md](SKILL.md), then [the complete local example](examples/README.md). [REFERENCE.md](REFERENCE.md) covers every setting, exit code, trust boundary and recovery path. `--lite` has fixed eligibility: one stage, no network work or publishing, and either ≤50 lines of documentation or a small code fix (`small-change`: ≤4 files, ≤40 changed lines outside tests, one KILLED mutant per criterion); its landing audit remains mandatory.
+
+## Set up a project
+
+Use a project with an initial Git commit. Preview its proposed contract, offline
+execution policy and empty run record with one command:
+
+```sh
+python3 "$AUTOPILOT_HOME/scripts/autopilot.py" init /path/to/project \
+  --goal 'Fix the export boundary case' --check 'npm test'
+```
+
+Repeat with `--write` to create the three drafts. Existing files are never
+overwritten; `--check` only records a proposed command. Review the contract,
+complete the acceptance criteria and required runtime paths, and commit the
+configuration before diagnosis and takeoff. Setup records no approval or passing
+checks. Its default policy requires offline OS isolation and parks if unavailable.
+
+```sh
+python3 "$AUTOPILOT_HOME/scripts/autopilot.py" status /path/to/project
+python3 "$AUTOPILOT_HOME/scripts/autopilot.py" doctor /path/to/project
+```
+
+`status` distinguishes missing, uncommitted, committed and locally modified
+configuration; it does not evaluate acceptance. `doctor` runs the existing host
+diagnosis without applying host changes. Continue with the skill's command preview
+and approved takeoff. Existing projects can use `status` directly; see the
+[setup reference](REFERENCE.md#project-setup-entry-point) for custom policies.
 
 ## Verify
 

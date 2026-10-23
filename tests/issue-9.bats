@@ -14,7 +14,10 @@ load test_helper
   [[ "$output" == *'(allow signal (target same-sandbox))'* ]]
   [[ "$output" != *'localhost'* ]]
   run bash -c "printf '{\"version\":1,\"deny_network\":true,\"allow_loopback\":true}' | python3 -c 'import json,sys; sys.path.insert(0, \"$SKILL/scripts\"); sys.dont_write_bytecode=True; import policy; p=policy.normalize(json.load(sys.stdin)); p[\"sandbox\"]=\"sandbox-exec\"; print(policy.profile(p, \"/t\", \"/h\", \"/tmp/x\", \"/g\", \"/s\", \"/o\", \"/w\", \"/k\", \"/e\"))'"
-  [[ "$output" == *'(allow network* (remote ip "localhost:*"))'* ]]
+  [[ "$output" == *'(allow network-bind (local ip "localhost:*"))'* ]]
+  [[ "$output" == *'(allow network-inbound (local ip "localhost:*"))'* ]]
+  [[ "$output" == *'(allow network-outbound (remote ip "localhost:*"))'* ]]
+  [[ "$output" != *'(allow network* (local ip "localhost:*"))'* ]]
   [[ "$output" != *'(allow network*)'* ]]
 }
 
@@ -24,9 +27,16 @@ load test_helper
   # with allow_loopback, which this also exercises on a live sandbox-exec.
   extra=; [ "$(uname -s)" != Darwin ] || extra=',"allow_loopback":true'
   mkdir -p "$REPO/docs"; printf '{"version":1,"deny_network":true%s}' "$extra" >"$REPO/docs/autopilot-policy.json"; commit_fixture
-  run gate loop "python3 -c 'import socket; s=socket.socket(); s.bind((\"127.0.0.1\", 0)); s.listen(); c=socket.create_connection(s.getsockname()); print(\"LOOPBACK_OK\")'"
-  [ "$status" -eq 0 ]
+  # Use the runner's required system Perl, which is already in its runtime
+  # allowlist; a separately installed Python may load a denied framework.
+  run gate loop '/usr/bin/perl -MSocket -e '\''socket(my $s, PF_INET, SOCK_STREAM, 0) or die "socket: $!"; bind($s, sockaddr_in(0, inet_aton("127.0.0.1"))) or die "bind: $!"; listen($s, 1) or die "listen: $!"; socket(my $c, PF_INET, SOCK_STREAM, 0) or die "client: $!"; connect($c, getsockname($s)) or die "connect: $!"; print "LOOPBACK_OK\n"'\'''
+  [ "$status" -eq 0 ] || { cat "$EVID/loop.md"; false; }
   grep -q LOOPBACK_OK "$EVID/loop.md"
+  # A local-only exception must not admit an external UDP socket. connect()
+  # sends no packet; the runner also checks its unsandboxed positive control.
+  run gate loop-external '/usr/bin/perl -MSocket -e '\''socket(my $s, PF_INET, SOCK_DGRAM, 0) or die "socket"; if (connect($s, sockaddr_in(443, inet_aton("1.1.1.1")))) { print "EXTERNAL_ALLOWED\n"; exit 1; } print "EXTERNAL_BLOCKED\n"'\'''
+  [ "$status" -eq 0 ] || { cat "$EVID/loop-external.md"; false; }
+  grep -q EXTERNAL_BLOCKED "$EVID/loop-external.md"
 }
 
 @test "share_dirs links an ignored checkout directory read-only into the gate's worktree" {

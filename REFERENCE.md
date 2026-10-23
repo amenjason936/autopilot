@@ -2,6 +2,62 @@
 
 Read the relevant section when configuring a run, interpreting script results or recovering an interruption.
 
+## Project setup entry point
+
+`python3 scripts/autopilot.py init REPO --goal TEXT [--check COMMAND ...] [--write] [--json]`
+prepares `docs/autopilot.md`, `docs/autopilot-policy.json` and
+`docs/runs/run.md` from the shipped templates. The default prints every draft and
+writes nothing. `--write` creates new files exclusively after checking all three
+paths and the dedicated `docs/evidence` directory. Existing files, paths already
+at HEAD (including locally deleted files), occupied evidence directories,
+symlinks, nested repositories and ignored destinations are refused. Empty evidence
+directories are allowed. Template anchors and UTF-8 encoding of the whole bundle
+are validated before any file is created. A write failure preserves files already
+created for inspection; it never deletes files to roll back a partial setup.
+Run it in the intended workspace.
+
+The policy requests offline OS isolation through the existing automatic backend
+selection and `fallback: park`. Dependency sharing, writable output directories,
+extra runtime paths, loopback, lite code changes and cloud uploads are not enabled
+by setup. Review the proposed policy for the actual project before committing it.
+Goals and checks must be printable, non-empty single lines. `--check` can repeat;
+its commands are stored verbatim in fenced blocks and never executed. The run
+record omits illustrative table rows so examples cannot look like
+completed preflight, review or acceptance results. Its base still needs freezing
+after the reviewed configuration is committed.
+
+`python3 scripts/autopilot.py status REPO [--json]` performs read-only Git/file
+inspection. It reports each setup file as `missing`, `uncommitted`, `committed`
+(working bytes equal HEAD), `modified` or `deleted` (present at HEAD but absent
+locally). It honors `GATE_POLICY` and the working-tree policy's
+`record_paths.run_record`; the report explicitly distinguishes
+those paths from the committed policy used by gates. If the policy was locally
+deleted, status uses its committed version to locate the record and labels that
+source explicitly. Invalid policies and unsafe configuration paths fail instead
+of appearing ready. A committed file is not proof
+of authorization, passing gates, current evidence or acceptance; this command does
+not evaluate those claims. Custom policy users should edit their existing setup;
+`init` refuses a non-default `GATE_POLICY` instead of creating a competing policy.
+
+`python3 scripts/autopilot.py doctor REPO` delegates to `host-doctor.sh` without
+`--fix` and preserves its diagnostic exit status. It runs the host's existing
+capability probes, but executes no project checks and makes no host changes.
+
+`init` and `status` validate policy contents without the runtime-only `GATE_ENV`
+and `GATE_SANDBOX` overrides; the runner and doctor keep their existing runtime
+behavior. Git inspection and doctor preserve existing system/global
+`safe.directory` entries (including includes and empty resets) while disabling
+unrelated global/system Git configuration and other Git environment overrides.
+They never add trust automatically or promote repository-local trust settings.
+An ownership refusal explains that ownership/protected trust needs review.
+
+Setup/inspection exits: `0` completed preview, creation or inspection (including
+reported missing files); `64` invalid input/policy/path; `65` no usable initial Git
+commit or usable Git trust; `73` an initialization path exists locally or at HEAD;
+`74` inspection/write failure.
+Argparse usage errors exit `2`. No command in this entry point installs dependencies,
+commits files, dispatches reviewers or starts an unattended run.
+
 ## Policy and execution boundary
 
 The contract has a committed companion `docs/autopilot-policy.json`:
@@ -47,7 +103,9 @@ servers in tests just work. On macOS, `sandbox-exec` denies all networking,
 loopback included; `"allow_loopback": true` admits `localhost` only. That is the
 host's own loopback, so services listening there (databases, a real gateway)
 become reachable: set it only when no such service is a red line. Both
-backends let a process signal the children it started.
+backends let a process signal the children it started. The macOS exception
+scopes bind/inbound to the local loopback and outbound to the remote loopback;
+it never grants all network operations based on a local-address predicate.
 
 **Generators and drift checks.** The worktree is read-only, so a check that
 regenerates tracked files in place and runs `git diff --exit-code` cannot run

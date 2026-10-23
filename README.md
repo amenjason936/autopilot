@@ -99,7 +99,7 @@ python3 "$AUTOPILOT_HOME/scripts/autopilot.py" status /path/to/project
 python3 "$AUTOPILOT_HOME/scripts/autopilot.py" doctor /path/to/project
 ```
 
-`status` distinguishes missing, uncommitted, committed and locally modified
+`status` distinguishes missing, locally deleted, uncommitted, committed and modified
 configuration; it does not evaluate acceptance. `doctor` runs the existing host
 diagnosis without applying host changes. Continue with the skill's command preview
 and approved takeoff. Existing projects can use `status` directly; see the

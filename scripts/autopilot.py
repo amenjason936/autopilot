@@ -5,6 +5,7 @@ This entry point never runs project checks, commits configuration or approves a
 run. Existing runner and policy helpers retain their execution semantics.
 """
 import argparse
+import functools
 import json
 import os
 import pathlib
@@ -30,10 +31,31 @@ class SetupError(Exception):
         self.code = code
 
 
-def git_environment():
+@functools.lru_cache(maxsize=None)
+def git_environment(repo):
     env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+    # Read only existing system/global trust, including ordered empty resets.
+    # Never turn a repository-local setting into protected configuration or
+    # automatically trust the requested path. Other Git overrides stay disabled.
+    for key in ('GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_NOSYSTEM'):
+        if key in os.environ:
+            env[key] = os.environ[key]
+    trusted = []
+    for scope in ('--system', '--global'):
+        if scope == '--system' and env.get('GIT_CONFIG_NOSYSTEM', '').lower() not in ('', '0', 'false', 'no', 'off'):
+            continue
+        result = subprocess.run(['git', '-C', str(repo), 'config', scope,
+                                 '--includes', '--null', '--get-all', 'safe.directory'],
+                                env=env, capture_output=True, timeout=30)
+        if result.returncode not in (0, 1):
+            raise SetupError('cannot read protected Git trust settings; check the repository path and Git configuration', 65)
+        trusted.extend(os.fsdecode(value) for value in result.stdout.split(b'\0')[:-1])
     env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_SYSTEM=os.devnull,
-               GIT_OPTIONAL_LOCKS='0', GIT_TERMINAL_PROMPT='0')
+               GIT_OPTIONAL_LOCKS='0', GIT_TERMINAL_PROMPT='0',
+               GIT_CONFIG_COUNT=str(len(trusted)), LC_ALL='C')
+    for i, value in enumerate(trusted):
+        env['GIT_CONFIG_KEY_' + str(i)] = 'safe.directory'
+        env['GIT_CONFIG_VALUE_' + str(i)] = value
     return env
 
 
@@ -41,12 +63,14 @@ def git(repo, *args):
     # Read-only plumbing needs neither user Git overrides nor repo callbacks.
     return subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c',
                            'core.fsmonitor=false', '-C', str(repo), *args],
-                          env=git_environment(), capture_output=True, timeout=30)
+                          env=git_environment(repo), capture_output=True, timeout=30)
 
 
 def project(path):
     result = git(path, 'rev-parse', '--show-toplevel')
     if result.returncode:
+        if b'dubious ownership' in result.stderr:
+            raise SetupError('Git refused repository ownership; review ownership and your protected safe.directory settings', 65)
         raise SetupError('use an existing Git working tree', 65)
     repo = pathlib.Path(os.fsdecode(result.stdout).rstrip('\n')).resolve()
     result = git(repo, 'rev-parse', '--verify', 'HEAD^{commit}')
@@ -62,7 +86,7 @@ def relative(name):
     return pathlib.Path(name)
 
 
-def safe_path(repo, name):
+def safe_path(repo, name, directory=False):
     path = repo
     parts = relative(name).parts
     for i, part in enumerate(parts):
@@ -71,7 +95,7 @@ def safe_path(repo, name):
             raise SetupError('symlink configuration path refused: ' + name)
         if path.exists():
             mode = path.stat().st_mode
-            if i < len(parts) - 1:
+            if i < len(parts) - 1 or directory:
                 if not stat.S_ISDIR(mode) or (path / '.git').exists():
                     raise SetupError('configuration parent is not a plain directory: ' + name)
             elif not stat.S_ISREG(mode):
@@ -102,19 +126,30 @@ def blank_record(template):
     return '\n'.join(lines) + '\n'
 
 
+def render_template(template, replacements, name):
+    for anchor in replacements:
+        if template.count(anchor) != 1:
+            raise SetupError('template anchor must occur exactly once in ' + name + ': ' + anchor)
+    # One pass prevents inserted user text from becoming another template anchor.
+    pattern = '|'.join(re.escape(anchor) for anchor in replacements)
+    return re.sub(pattern, lambda match: replacements[match.group()], template)
+
+
 def drafts(repo, head, goal, checks):
-    if any(ord(c) < 32 for c in goal) or not goal.strip():
+    if not goal.isprintable() or not goal.strip():
         raise SetupError('--goal must be a non-empty single line')
     for command in checks:
-        if not command.strip() or any(ord(c) < 32 for c in command):
+        if not command.strip() or not command.isprintable():
             raise SetupError('each --check must be a non-empty single line')
     policy = dict(version=1, sandbox='env-clean', deny_network=True,
                   deny_paths=[], read_paths=[], env=[], write_dirs=[], fallback='park',
                   record_paths=dict(evidence_dir='docs/evidence', run_record=RECORD))
     # Validate through the same rules as the runner, without freezing a
     # machine-specific backend or importing environment overrides into the draft.
-    normalize(policy)
-    contract = (ROOT / 'CONTRACT-TEMPLATE.md').read_text().replace('<project>', repo.name, 1)
+    try:
+        normalize(policy, environ={})
+    except (ValueError, TypeError, AttributeError) as error:
+        raise SetupError('generated setup policy is invalid') from error
     proposed = '\n### Proposed checks (not executed or authorized by setup)\n\n'
     if checks:
         for command in checks:
@@ -123,14 +158,18 @@ def drafts(repo, head, goal, checks):
         proposed += 'Review these commands and complete the Machine gate table above.\n'
     else:
         proposed += 'Choose the project checks and complete the Machine gate table above.\n'
-    contract = contract.replace('Gate settings (environment for `run-gate.sh`):',
-                                proposed + '\nGate settings (environment for `run-gate.sh`):', 1)
-    record = blank_record((ROOT / 'RUN-RECORD-TEMPLATE.md').read_text())
-    record = record.replace('# <run title>', '# Proposed run', 1)
-    record = record.replace('- cut from: <full commit>', '- cut from: ' + head, 1)
-    record = record.replace('- tested commit: <full commit>', '- tested commit: not tested', 1)
-    record = record.replace('What the human asked for, in their words.', goal, 1)
-    record = record.replace('## Goal', '> Setup draft: no authorization, checks, evidence or reviews have been recorded.\n\n## Goal', 1)
+    contract = render_template((ROOT / 'CONTRACT-TEMPLATE.md').read_text(encoding='utf-8'), {
+        '<project>': repo.name,
+        'Gate settings (environment for `run-gate.sh`):':
+            proposed + '\nGate settings (environment for `run-gate.sh`):',
+    }, 'CONTRACT-TEMPLATE.md')
+    record = render_template(blank_record((ROOT / 'RUN-RECORD-TEMPLATE.md').read_text(encoding='utf-8')), {
+        '# <run title>': '# Proposed run',
+        '- cut from: <full commit>': '- cut from: ' + head,
+        '- tested commit: <full commit>': '- tested commit: not tested',
+        'What the human asked for, in their words.': goal,
+        '## Goal': '> Setup draft: no authorization, checks, evidence or reviews have been recorded.\n\n## Goal',
+    }, 'RUN-RECORD-TEMPLATE.md')
     return {CONTRACT: contract, POLICY: json.dumps(policy, indent=2) + '\n', RECORD: record}
 
 
@@ -149,7 +188,7 @@ def write_new(repo, name, content):
             directory = child
         fd = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                      0o600, dir_fd=directory)
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+        with os.fdopen(fd, 'wb') as stream:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
@@ -162,12 +201,21 @@ def initialize(args):
     if os.environ.get('GATE_POLICY', POLICY) != POLICY:
         raise SetupError('init uses docs/autopilot-policy.json; unset GATE_POLICY or keep the existing custom setup')
     files = drafts(repo, head, args.goal, args.check)
+    try:
+        encoded = {name: content.encode('utf-8') for name, content in files.items()}
+    except UnicodeError as error:
+        raise SetupError('setup drafts must be valid UTF-8') from error
     # Check the whole bundle before creating anything. Never use --force or
     # silently repair an existing setup, even when its contents look generated.
-    for name in files:
-        if safe_path(repo, name).exists():
-            raise SetupError('setup file already exists; use status and edit it deliberately: ' + name, 73)
-        ignored = git(repo, 'check-ignore', '-q', '--no-index', '--', name)
+    evidence = json.loads(files[POLICY])['record_paths']['evidence_dir']
+    for name in [*files, evidence]:
+        is_evidence = name == evidence
+        path = safe_path(repo, name, directory=is_evidence)
+        if path.exists() and (not is_evidence or any(path.iterdir())):
+            raise SetupError('setup path already exists; use status and edit it deliberately: ' + name, 73)
+        if git(repo, 'cat-file', '-e', f'{head}:{name}').returncode == 0:
+            raise SetupError('setup path already exists at HEAD; restore or review it deliberately: ' + name, 73)
+        ignored = git(repo, 'check-ignore', '-q', '--no-index', '--', name + ('/' if is_evidence else ''))
         if ignored.returncode == 0:
             raise SetupError('setup path is ignored by Git: ' + name)
         if ignored.returncode != 1:
@@ -175,7 +223,7 @@ def initialize(args):
     written = []
     if args.write:
         try:
-            for name, content in files.items():
+            for name, content in encoded.items():
                 write_new(repo, name, content)
                 written.append(name)
         except OSError as error:
@@ -204,7 +252,7 @@ def file_state(repo, head, name):
     working = read_file(repo, name)
     committed = git(repo, 'cat-file', 'blob', f'{head}:{name}')
     if working is None:
-        return 'missing'
+        return 'deleted' if committed.returncode == 0 else 'missing'
     if committed.returncode:
         return 'uncommitted'
     return 'committed' if working == committed.stdout else 'modified'
@@ -217,13 +265,19 @@ def status(args):
     raw = read_file(repo, policy_path)
     paths = [CONTRACT, policy_path]
     policy_state = 'missing'
+    policy_source = 'working-tree'
     needs = []
+    if raw is None:
+        committed = git(repo, 'cat-file', 'blob', f'{head}:{policy_path}')
+        if committed.returncode == 0:
+            raw = committed.stdout
+            policy_source = 'committed'
     if raw is not None:
         try:
-            policy = normalize(json.loads(raw))
+            policy = normalize(json.loads(raw), environ={})
         except (ValueError, TypeError, AttributeError):
-            raise SetupError('working-tree policy is invalid: ' + policy_path)
-        policy_state = 'valid working-tree policy'
+            raise SetupError(policy_source + ' policy is invalid: ' + policy_path)
+        policy_state = 'valid ' + policy_source + ' policy'
         run_record = policy['record_paths'].get('run_record')
         if run_record:
             paths.append(run_record)
@@ -233,11 +287,11 @@ def status(args):
         paths.append(RECORD)
     files = {name: file_state(repo, head, name) for name in dict.fromkeys(paths)}
     if needs or any(value != 'committed' for value in files.values()):
-        next_step = 'Review missing or uncommitted configuration; use init only for a project without setup files.'
+        next_step = 'Review missing, deleted or uncommitted configuration; use init only for a project without setup files.'
     else:
         next_step = 'Run doctor, preview the gate commands, and follow the approved takeoff or resume procedure.'
     result = {'repo': str(repo), 'head': head, 'policy': policy_state, 'files': files,
-              'paths_from': 'working-tree policy; gates use the committed policy',
+              'paths_from': policy_source + ' policy; gates use the committed policy',
               'needs': needs, 'verification': 'setup inspection only; authorization, gates and evidence are not evaluated',
               'next': next_step}
     if args.json:
@@ -273,7 +327,7 @@ def main():
         status(args)
     else:
         repo, _ = project(args.repo)
-        return subprocess.run(['bash', str(ROOT / 'scripts/host-doctor.sh'), str(repo)], env=git_environment()).returncode
+        return subprocess.run(['bash', str(ROOT / 'scripts/host-doctor.sh'), str(repo)], env=git_environment(repo)).returncode
     return 0
 
 

@@ -29,9 +29,11 @@ def paths(values, aliases=False):
     return list(dict.fromkeys(normalized))
 
 
-def normalize(supplied=None):
+def normalize(supplied=None, *, environ=None):
     if supplied is None:
         supplied = json.load(sys.stdin)
+    if environ is None:
+        environ = os.environ
     allowed = {'version', 'sandbox', 'deny_network', 'deny_paths', 'read_paths', 'env', 'record_paths', 'write_dirs', 'fallback', 'generated_paths', 'lite', 'allow_loopback', 'share_dirs'}
     if not isinstance(supplied, dict) or set(supplied) - allowed or supplied.get('version', 1) != 1:
         raise ValueError('unsupported policy schema')
@@ -43,14 +45,14 @@ def normalize(supplied=None):
     names = supplied.get('env', [])
     if not isinstance(names, list) or any(not isinstance(n, str) for n in names):
         raise ValueError('env must be an array of variable names')
-    names = list(dict.fromkeys(names + os.environ.get('GATE_ENV', '').split()))
+    names = list(dict.fromkeys(names + environ.get('GATE_ENV', '').split()))
     for name in names:
         upper = name.upper()
         if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name) or re.search(r'KEY|TOKEN|SECRET|PASSWORD', upper):
             raise ValueError('secret or invalid environment variable name refused')
         if upper in RESERVED or upper.startswith(('LD_', 'DYLD_', 'GIT_', 'BASH_FUNC_')):
             raise ValueError('runtime injection environment variable refused')
-    sandbox = os.environ.get('GATE_SANDBOX') or supplied.get('sandbox', 'env-clean')
+    sandbox = environ.get('GATE_SANDBOX') or supplied.get('sandbox', 'env-clean')
     if supplied.get('sandbox') in ('sandbox-exec', 'bwrap') and sandbox == 'env-clean':
         sandbox = supplied['sandbox']
     if sandbox not in ('env-clean', 'sandbox-exec', 'bwrap'):

@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### review of 0.3.0-rc.1 on macOS 26 (2026-11-12)
+
+- `allow_loopback` no longer admits external hosts: the `sandbox-exec` profile
+  names bind, inbound and outbound separately. The earlier
+  `(allow network* (local ip "localhost:*"))` also matched outbound sockets, so
+  the preflight probe refused every gate of such a policy (exit 77).
+- The live loopback test uses Perl from the default runtime roots and asserts
+  that an external address stays unreachable.
+- `host-doctor.sh` prints an advisory `toolchain:` line for interpreters on
+  PATH that a restrictive policy's read paths do not cover, Xcode shims included.
+- `check-record.py` checks the record's state rules from committed bytes; the
+  skill runs it after every record commit and the auditor reruns it.
+- REFERENCE says how to merge without orphaning commit-bound evidence; the
+  contract template asks for the merge method.
+- SKILL.md links to the lite limits in REFERENCE instead of restating them.
+
 ## 0.3.0-rc.1 — 2026-10-14
 
 Everything below down to 0.2.0-rc.2, grouped by the round that produced it.

@@ -14,19 +14,39 @@ load test_helper
   [[ "$output" == *'(allow signal (target same-sandbox))'* ]]
   [[ "$output" != *'localhost'* ]]
   run bash -c "printf '{\"version\":1,\"deny_network\":true,\"allow_loopback\":true}' | python3 -c 'import json,sys; sys.path.insert(0, \"$SKILL/scripts\"); sys.dont_write_bytecode=True; import policy; p=policy.normalize(json.load(sys.stdin)); p[\"sandbox\"]=\"sandbox-exec\"; print(policy.profile(p, \"/t\", \"/h\", \"/tmp/x\", \"/g\", \"/s\", \"/o\", \"/w\", \"/k\", \"/e\"))'"
-  [[ "$output" == *'(allow network* (remote ip "localhost:*"))'* ]]
-  [[ "$output" != *'(allow network*)'* ]]
+  [[ "$output" == *'(allow network-bind (local ip "localhost:*"))'* ]]
+  [[ "$output" == *'(allow network-inbound (local ip "localhost:*"))'* ]]
+  [[ "$output" == *'(allow network-outbound (remote ip "localhost:*"))'* ]]
+  # A local-address filter on network* also matches outbound sockets, whose
+  # local end is unbound: it admits every remote host.
+  [[ "$output" != *'(allow network*'* ]]
 }
 
-@test "a strict offline gate can use 127.0.0.1 (private namespace on Linux, allow_loopback on macOS)" {
+@test "a strict offline gate can use 127.0.0.1 and still reaches no external address" {
   require_os_sandbox
   # Linux: the private network namespace has its own loopback. macOS: only
   # with allow_loopback, which this also exercises on a live sandbox-exec.
+  # Perl is a required tool inside the default runtime roots, so the fixture
+  # does not depend on where the host keeps another interpreter.
   extra=; [ "$(uname -s)" != Darwin ] || extra=',"allow_loopback":true'
-  mkdir -p "$REPO/docs"; printf '{"version":1,"deny_network":true%s}' "$extra" >"$REPO/docs/autopilot-policy.json"; commit_fixture
-  run gate loop "python3 -c 'import socket; s=socket.socket(); s.bind((\"127.0.0.1\", 0)); s.listen(); c=socket.create_connection(s.getsockname()); print(\"LOOPBACK_OK\")'"
-  [ "$status" -eq 0 ]
-  grep -q LOOPBACK_OK "$EVID/loop.md"
+  mkdir -p "$REPO/docs"; printf '{"version":1,"deny_network":true%s}' "$extra" >"$REPO/docs/autopilot-policy.json"
+  cat >"$REPO/loop.pl" <<'PERL'
+use Socket;
+socket(my $s, PF_INET, SOCK_STREAM, 0) or die "socket: $!";
+bind($s, sockaddr_in(0, INADDR_LOOPBACK)) or die "bind: $!";
+listen($s, 1) or die "listen: $!";
+socket(my $c, PF_INET, SOCK_STREAM, 0) or die "socket: $!";
+connect($c, getsockname($s)) or die "connect: $!";
+print "LOOPBACK_OK\n";
+# UDP connect sends no packet; it succeeds only when the address is reachable.
+socket(my $u, PF_INET, SOCK_DGRAM, 0) or exit 0;
+print "EXTERNAL_REACHED\n" if connect($u, sockaddr_in(443, inet_aton("1.1.1.1")));
+PERL
+  commit_fixture
+  run gate loop '/usr/bin/perl loop.pl'
+  [ "$status" -eq 0 ] || { cat "$EVID/loop.md"; false; }
+  grep -q '^LOOPBACK_OK$' "$EVID/loop.md"
+  ! grep -q EXTERNAL_REACHED "$EVID/loop.md"
 }
 
 @test "share_dirs links an ignored checkout directory read-only into the gate's worktree" {

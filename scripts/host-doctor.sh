@@ -27,6 +27,25 @@ for tool in codex bats shellcheck; do
   printf 'optional %s: %s\n' "$tool" "$(command -v "$tool" >/dev/null 2>&1 && echo found || echo absent)"
 done
 
+# Advisory only: a tool inside the read paths can still load files outside them
+# (macOS /usr/bin shims load the developer directory), so no line here is not a pass.
+TOOLCHAIN_CHECK='
+import json, os, shutil, subprocess, sys
+reads = json.load(sys.stdin)["effective"]["read_paths"]
+inside = lambda path: any(path == r or path.startswith(r.rstrip("/") + "/") for r in reads)
+hint = "strict gates cannot run it; add that location to read_paths or call a tool inside them"
+for name in sys.argv[1:]:
+    found = shutil.which(name)
+    if not found:
+        continue
+    real = os.path.realpath(found)
+    if not inside(real):
+        print(f"toolchain: {name} resolves to {real}, outside the policy\x27s read paths \u2014 {hint}")
+    elif sys.platform == "darwin" and real in ("/usr/bin/python3", "/usr/bin/make"):
+        dev = subprocess.run(["/usr/bin/xcode-select", "-p"], capture_output=True, text=True).stdout.strip()
+        if dev and not inside(os.path.realpath(dev)):
+            print(f"toolchain: {name} is an Xcode shim that loads {dev}, outside the policy\x27s read paths \u2014 {hint}")
+'
 NAMED=
 RESTRICTIVE=unknown
 FALLBACK=park
@@ -35,6 +54,11 @@ if POLICY="$(python3 "$SCRIPT_DIR/policy.py" select "$REPO" HEAD 2>/dev/null)"; 
   FALLBACK="$(printf '%s' "$POLICY" | jq -r '.effective.fallback // "park"')"
   NAMED="$(printf '%s' "$POLICY" | jq -r '.effective.sandbox')"
   printf 'policy: %s (restrictive: %s; fallback: %s)\n' "$(printf '%s' "$POLICY" | jq -r '.path // "none (defaults)"')" "$RESTRICTIVE" "$FALLBACK"
+  # A strict profile reads only the policy's roots. Name interpreters on PATH
+  # that live elsewhere now, instead of letting them abort inside the first gate.
+  if [ "$RESTRICTIVE" = yes ]; then
+    printf '%s' "$POLICY" | python3 -I -c "$TOOLCHAIN_CHECK" python3 node npm ruby go cargo java make || true
+  fi
 elif git -C "$REPO" cat-file -e "HEAD:${GATE_POLICY:-docs/autopilot-policy.json}" 2>/dev/null; then
   printf 'policy: %s at HEAD is invalid — gates refuse it (exit 64); fix the policy first\n' "${GATE_POLICY:-docs/autopilot-policy.json}"
   exit 64

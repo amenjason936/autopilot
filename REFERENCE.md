@@ -110,6 +110,15 @@ reads the committed policy at REPO's HEAD and prints one recommendation:
 | `install` | 1 | the listed host changes would make it launch |
 | `park` | 2 | restrictive policy, no backend, no approved fallback |
 
+For a restrictive policy it also prints a `toolchain:` line for each common
+interpreter on PATH (`python3`, `node`, `npm`, `ruby`, `go`, `cargo`, `java`,
+`make`) that resolves outside the policy's read paths, and on macOS for the
+`/usr/bin` Xcode shims whose developer directory is outside them: a strict gate
+cannot launch such a tool. Add its location to `read_paths` or call a tool
+inside them before takeoff. The lines are advisory and change neither the
+recommendation nor the exit status; their absence does not prove a gate's
+commands can run, which the base gate establishes.
+
 `--fix` applies the `install` changes (installing bubblewrap, an AppArmor profile
 for `/usr/bin/bwrap` only, enabling unprivileged user namespaces) through
 passwordless `sudo`, then probes again. These change the host: run it only when

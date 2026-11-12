@@ -312,6 +312,17 @@ register them with `evidence.py register` before another reviewer relies on them
 
 Each finding is verified, triaged and recorded; the default budget is two rounds. A review that could not run is listed under Not verified. Publication, deployment, destructive cleanup and credentials still require their own explicit authorization. Reaching `landed` without open ledger entries can include failed or parked criteria; it must never be reported as all criteria accepted. Pre-authorized merge/release commands additionally require their prerequisite criteria proven with current evidence and no related blocker, dispute, or blocking fixed-unreviewed item. A record of closure cannot waive these conditions. Process-group cleanup covers cooperative group membership; descendants deliberately escaping their session need an externally supervised job/container boundary. Do not claim that guarantee on macOS from process-group tests alone.
 
+**Merging without losing the evidence binding.** Evidence, MANIFEST and review
+identity name commits, so the reviewed head must stay reachable after landing.
+A fast-forward or a merge commit keeps it. A squash or rebase creates new
+commits that no evidence names: when the contract pre-authorizes one, record
+the reviewed head and the resulting commit in the run record, show that the
+two trees are identical outside the record paths (`git diff <reviewed head>
+<new commit>` prints nothing), and keep the reviewed head reachable through
+its branch or a tag the contract authorizes. A merge onto a target that moved
+since the base is new code no gate has seen: run the landing gate on the
+merged result under a new label, or park the merge. Deleting the run's branch
+afterwards is destructive cleanup and needs its own authorization.
 
 ## Migrating an existing project
 

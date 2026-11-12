@@ -281,7 +281,15 @@ security, secrets, credentials, migrations; not `author.ts`).
   `privilege`, `password`, `secret`, `credential`, `csrf`, `cors`, `acl`, `rbac`,
   `sudo`, `chmod`, `signature`, `encrypt`/`decrypt`, `sanitize`, allow/deny lists),
   because a two-line guard removal looks small and innocuous to a path check.
-  It still needs one KILLED mutant per criterion.
+  It still needs one KILLED mutant per criterion, which the author may select
+  or write by hand when `suggest-mutants.sh` offers nothing usable (record
+  `selected_by: author (lite)`), with no targets request and no stage
+  adversary review. When the contract approves a cloud reviewer, one landing
+  adversary call is recommended; it is the run's only review call.
+
+The lite base is the commit the run starts from **after** any contract or
+policy import; that import is never lite-eligible. Gate evidence records the
+check-lite line, and `run-mutant.sh` takes no `--lite`.
 
 Each refusal names its rule. The checker cannot judge meaning: the landing
 auditor reruns it, compares the declarations with the actual plan and commands,

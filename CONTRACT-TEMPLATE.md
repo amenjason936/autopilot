@@ -68,7 +68,7 @@ both this file and its JSON companion. See REFERENCE.md in the skill.
 
 What a run does without asking. Be specific: which environments, hosts, ports, accounts, and any spend limit.
 
-If landing is pre-authorized, write it as the exact commands in order — merge, dependency install, release — and the conditions that must hold first. A step missing from that list is a red line. Even pre-authorized merge/release requires all relevant criteria proven with current evidence and no associated blocker, dispute or blocking fixed-unreviewed finding.
+If landing is pre-authorized, write it as the exact commands in order — merge, dependency install, release — and the conditions that must hold first. Name the merge method: evidence binds to commits, so prefer a fast-forward or merge commit, and see [REFERENCE.md](REFERENCE.md#review-and-landing) before authorizing a squash or rebase. A step missing from that list is a red line. Even pre-authorized merge/release requires all relevant criteria proven with current evidence and no associated blocker, dispute or blocking fixed-unreviewed finding.
 
 ## Red lines
 

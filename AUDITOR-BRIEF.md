@@ -35,6 +35,7 @@ Read every evidence result from its footer only (the final `- finished:` and `- 
 Then:
 - Rerun the contract's `rerun: safe` machine-gate commands at the head if time allows, through `run-gate.sh` with the contract's gate settings and an evidence file outside the repository (`$TMPDIR/audit/<label>.md`), and say which you reran and where their evidence is.
 - Verify reused review findings against the runner request/receipt and expected base/head/scope/input hashes, and check merge/release prerequisites are proven/current without related blockers, disputes or blocking fixed-unreviewed items.
+- Run `python3 "$AUTOPILOT_HOME/scripts/check-record.py" <repo> <record> <head>` (add `--landing` at landing) and report each line it prints that is not `record check: OK` as a finding; it reads structure only, so a pass replaces none of the checks here.
 - Check the ledger: every review finding has a status from the template's set; every `blocking-fixed` cites a commit and a test; at landing no criterion is `open` and no finding is `blocking-open` or plain `open`. `minor-open` is allowed when its note says why it stays open.
 - Check the run touched nothing the contract lists as a red line.
 - Do not read or quote secrets (`.env`, key files, credential stores) even if the run did.

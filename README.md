@@ -71,6 +71,7 @@ plan path>` and resume with `/autopilot resume <run-record path>`.
 The project contract (`docs/autopilot.md`) holds the approved commands and red
 lines. The run record holds frozen criteria, current state, decisions and evidence.
 `run-gate.sh` executes pinned checks; `run-mutant.sh` challenges their detectors;
+`check-record.py` checks the record's state rules after each record commit;
 `codex-review.sh` prepares or dispatches the reviewer; `api-review.py` runs a snapshot-only review by a cloud model such as DeepSeek; `validate-findings.sh`
 validates its findings. Their headers and REFERENCE.md document CLI settings.
 

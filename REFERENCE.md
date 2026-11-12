@@ -110,6 +110,15 @@ reads the committed policy at REPO's HEAD and prints one recommendation:
 | `install` | 1 | the listed host changes would make it launch |
 | `park` | 2 | restrictive policy, no backend, no approved fallback |
 
+For a restrictive policy it also prints a `toolchain:` line for each common
+interpreter on PATH (`python3`, `node`, `npm`, `ruby`, `go`, `cargo`, `java`,
+`make`) that resolves outside the policy's read paths, and on macOS for the
+`/usr/bin` Xcode shims whose developer directory is outside them: a strict gate
+cannot launch such a tool. Add its location to `read_paths` or call a tool
+inside them before takeoff. The lines are advisory and change neither the
+recommendation nor the exit status; their absence does not prove a gate's
+commands can run, which the base gate establishes.
+
 `--fix` applies the `install` changes (installing bubblewrap, an AppArmor profile
 for `/usr/bin/bwrap` only, enabling unprivileged user namespaces) through
 passwordless `sudo`, then probes again. These change the host: run it only when
@@ -224,6 +233,37 @@ Initial tool, sandbox and patch checks run before a durable `.partial` is create
 
 A `.partial` is not proof that a side effect did or did not happen. Automatic recovery refuses execution unless `GATE_RERUN_POLICY=safe` explicitly declares a verified harmless repeatable command. For costly/state-changing commands, park and inspect an idempotency key or remote receipt before separately authorizing a retry. Once safe, the partial is moved to `.partial.<UTC timestamp>.<pid>`. Normal exit/signals release the directory lock. SIGKILL/power failure can leave a stale lock: inspect `owner`, confirm the process is gone and no runner is using that directory, then remove **only that lock** under the user's file-deletion policy. Never remove arbitrary evidence to make a retry pass. A crash after result finalization but before manifest append leaves an unverified result: preserve it, inspect it, and normally rerun with a new label. Do not claim it passed manifest verification.
 
+## Record check
+
+`check-record.py [--landing] [--evidence DIR] REPO RECORD [COMMIT]` checks the
+state rules a run must keep, from committed bytes at COMMIT (default HEAD).
+RECORD is repository-relative; the evidence directory comes from the policy's
+`record_paths.evidence_dir` unless `--evidence` names it. Each violation is one
+`record check: …` line and the exit status is 1; a consistent record prints
+`record check: OK` with the status, `current:` and criteria tally.
+
+| rule | refused |
+|---|---|
+| vocabulary | a `status` or `current:` step the record template does not list |
+| agreement | `landed` without `current: landed…` (or the reverse); `planned` anywhere but `takeoff` |
+| identity | once flying: `base` or `tested commit` that is not a full commit, a missing helper pin |
+| committed | a working-copy record that differs from HEAD (reviewers and a resume read the commit) |
+| proof | a `proven` criterion citing nothing, a file absent from MANIFEST, or runner evidence whose footer is not `passed`/`KILLED` |
+| mutants | full mode: a proven criterion whose targets include no adversary-selected KILLED mutant; lite small-change: no KILLED mutant at all |
+| ledger | a finding status outside the template's set; `blocking-fixed` without a commit in its note; a parked id in `current:` missing from *Parked* |
+| landing | an `open` criterion, a `blocking-open` finding, or proven evidence older than the last code change that *Not verified* does not name |
+
+Landing rules apply with `--landing`, with `status: landed`, or when `current:`
+is a landing review, landing action or `landed`. A proven criterion with no
+mutation target at all in full mode is printed as a `note:` and left to the
+reviewers, since a check the run did not write may need none. Exit 64 is bad
+usage or an invalid policy; 66 means the record is not committed at COMMIT.
+
+The check reads structure only. It cannot tell whether a command proves what
+its criterion says, whether a mutant attacks the right condition, or whether
+an adversary really chose a target: those stay with the adversary and the
+auditor, who rerun it rather than trust the author's run of it.
+
 ## Mutation selection and lite
 
 `suggest-mutants.sh [--include-tests] REPO BASE HEAD NEW-DIRECTORY` produces patches against HEAD and `candidates.json`. Test files (`test/`, `tests/`, `Testing/`, `test_*.py`, `*.test.*`, `*.spec.*` and the like) are skipped unless `--include-tests`; mutating the detector rarely proves anything about the code. Lines inside Python docstrings, `return None` (equivalent to `return`) and `x[0]` → `x[-1]` are skipped too. An existing output directory exits 73 with a message. Candidates change only added/modified lines in the diff: comparisons, integer ±1, and guard disabling and empty/early returns for Python, plus `===`/`!==`, `&&`/`||`, `true`/`false`, `if (…)` → `if (false)` and `return …;` → `return;` for JavaScript/TypeScript (`if (0)` for C/C++). Python candidates exclude string/comment tokens and syntax failures. Other supported source extensions mask string and template literals and line comments on the changed line, so only code outside them changes; a line whose literal continues onto the next line yields nothing. Manual review and `git apply --check` remain mandatory. No candidates is not a reason to waive a criterion: the adversary supplies a targeted patch. Fill `selected_by` and `criterion` in the run record, not by pretending the generator is an independent reviewer.
@@ -272,7 +312,15 @@ security, secrets, credentials, migrations; not `author.ts`).
   `privilege`, `password`, `secret`, `credential`, `csrf`, `cors`, `acl`, `rbac`,
   `sudo`, `chmod`, `signature`, `encrypt`/`decrypt`, `sanitize`, allow/deny lists),
   because a two-line guard removal looks small and innocuous to a path check.
-  It still needs one KILLED mutant per criterion.
+  It still needs one KILLED mutant per criterion, which the author may select
+  or write by hand when `suggest-mutants.sh` offers nothing usable (record
+  `selected_by: author (lite)`), with no targets request and no stage
+  adversary review. When the contract approves a cloud reviewer, one landing
+  adversary call is recommended; it is the run's only review call.
+
+The lite base is the commit the run starts from **after** any contract or
+policy import; that import is never lite-eligible. Gate evidence records the
+check-lite line, and `run-mutant.sh` takes no `--lite`.
 
 Each refusal names its rule. The checker cannot judge meaning: the landing
 auditor reruns it, compares the declarations with the actual plan and commands,
@@ -303,6 +351,17 @@ register them with `evidence.py register` before another reviewer relies on them
 
 Each finding is verified, triaged and recorded; the default budget is two rounds. A review that could not run is listed under Not verified. Publication, deployment, destructive cleanup and credentials still require their own explicit authorization. Reaching `landed` without open ledger entries can include failed or parked criteria; it must never be reported as all criteria accepted. Pre-authorized merge/release commands additionally require their prerequisite criteria proven with current evidence and no related blocker, dispute, or blocking fixed-unreviewed item. A record of closure cannot waive these conditions. Process-group cleanup covers cooperative group membership; descendants deliberately escaping their session need an externally supervised job/container boundary. Do not claim that guarantee on macOS from process-group tests alone.
 
+**Merging without losing the evidence binding.** Evidence, MANIFEST and review
+identity name commits, so the reviewed head must stay reachable after landing.
+A fast-forward or a merge commit keeps it. A squash or rebase creates new
+commits that no evidence names: when the contract pre-authorizes one, record
+the reviewed head and the resulting commit in the run record, show that the
+two trees are identical outside the record paths (`git diff <reviewed head>
+<new commit>` prints nothing), and keep the reviewed head reachable through
+its branch or a tag the contract authorizes. A merge onto a target that moved
+since the base is new code no gate has seen: run the landing gate on the
+merged result under a new label, or park the merge. Deleting the run's branch
+afterwards is destructive cleanup and needs its own authorization.
 
 ## Migrating an existing project
 

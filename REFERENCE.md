@@ -233,6 +233,37 @@ Initial tool, sandbox and patch checks run before a durable `.partial` is create
 
 A `.partial` is not proof that a side effect did or did not happen. Automatic recovery refuses execution unless `GATE_RERUN_POLICY=safe` explicitly declares a verified harmless repeatable command. For costly/state-changing commands, park and inspect an idempotency key or remote receipt before separately authorizing a retry. Once safe, the partial is moved to `.partial.<UTC timestamp>.<pid>`. Normal exit/signals release the directory lock. SIGKILL/power failure can leave a stale lock: inspect `owner`, confirm the process is gone and no runner is using that directory, then remove **only that lock** under the user's file-deletion policy. Never remove arbitrary evidence to make a retry pass. A crash after result finalization but before manifest append leaves an unverified result: preserve it, inspect it, and normally rerun with a new label. Do not claim it passed manifest verification.
 
+## Record check
+
+`check-record.py [--landing] [--evidence DIR] REPO RECORD [COMMIT]` checks the
+state rules a run must keep, from committed bytes at COMMIT (default HEAD).
+RECORD is repository-relative; the evidence directory comes from the policy's
+`record_paths.evidence_dir` unless `--evidence` names it. Each violation is one
+`record check: …` line and the exit status is 1; a consistent record prints
+`record check: OK` with the status, `current:` and criteria tally.
+
+| rule | refused |
+|---|---|
+| vocabulary | a `status` or `current:` step the record template does not list |
+| agreement | `landed` without `current: landed…` (or the reverse); `planned` anywhere but `takeoff` |
+| identity | once flying: `base` or `tested commit` that is not a full commit, a missing helper pin |
+| committed | a working-copy record that differs from HEAD (reviewers and a resume read the commit) |
+| proof | a `proven` criterion citing nothing, a file absent from MANIFEST, or runner evidence whose footer is not `passed`/`KILLED` |
+| mutants | full mode: a proven criterion whose targets include no adversary-selected KILLED mutant; lite small-change: no KILLED mutant at all |
+| ledger | a finding status outside the template's set; `blocking-fixed` without a commit in its note; a parked id in `current:` missing from *Parked* |
+| landing | an `open` criterion, a `blocking-open` finding, or proven evidence older than the last code change that *Not verified* does not name |
+
+Landing rules apply with `--landing`, with `status: landed`, or when `current:`
+is a landing review, landing action or `landed`. A proven criterion with no
+mutation target at all in full mode is printed as a `note:` and left to the
+reviewers, since a check the run did not write may need none. Exit 64 is bad
+usage or an invalid policy; 66 means the record is not committed at COMMIT.
+
+The check reads structure only. It cannot tell whether a command proves what
+its criterion says, whether a mutant attacks the right condition, or whether
+an adversary really chose a target: those stay with the adversary and the
+auditor, who rerun it rather than trust the author's run of it.
+
 ## Mutation selection and lite
 
 `suggest-mutants.sh [--include-tests] REPO BASE HEAD NEW-DIRECTORY` produces patches against HEAD and `candidates.json`. Test files (`test/`, `tests/`, `Testing/`, `test_*.py`, `*.test.*`, `*.spec.*` and the like) are skipped unless `--include-tests`; mutating the detector rarely proves anything about the code. Lines inside Python docstrings, `return None` (equivalent to `return`) and `x[0]` → `x[-1]` are skipped too. An existing output directory exits 73 with a message. Candidates change only added/modified lines in the diff: comparisons, integer ±1, and guard disabling and empty/early returns for Python, plus `===`/`!==`, `&&`/`||`, `true`/`false`, `if (…)` → `if (false)` and `return …;` → `return;` for JavaScript/TypeScript (`if (0)` for C/C++). Python candidates exclude string/comment tokens and syntax failures. Other supported source extensions mask string and template literals and line comments on the changed line, so only code outside them changes; a line whose literal continues onto the next line yields nothing. Manual review and `git apply --check` remain mandatory. No candidates is not a reason to waive a criterion: the adversary supplies a targeted patch. Fill `selected_by` and `criterion` in the run record, not by pretending the generator is an independent reviewer.
